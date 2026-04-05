@@ -30,6 +30,9 @@ class CatSlotStyles {
   static const double reelHeight        = 120;
   static const double reelBorderRadius  = 18;
 
+  // Gesamtbreite der drei Rollen (3 × reelWidth + 2 × reelSpacing)
+  static const double reelRowWidth      = reelWidth * 3 + reelSpacing * 2;
+
   // Button
   static const double buttonBorderRadius = 16;
 

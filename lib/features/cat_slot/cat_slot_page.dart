@@ -60,24 +60,26 @@ class _CatSlotPageState extends State<CatSlotPage> {
               const SizedBox(height: CatSlotStyles.titleSpacing),
               BalanceLabel(coins: _controller.coins),
               const SizedBox(height: CatSlotStyles.sectionSpacing),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ReelBox(
-                    emoji: _controller.slots[0],
-                    animateKey: ValueKey('0-${_controller.slots[0]}-${_controller.spinTick}'),
-                  ),
-                  const SizedBox(width: CatSlotStyles.reelSpacing),
-                  ReelBox(
-                    emoji: _controller.slots[1],
-                    animateKey: ValueKey('1-${_controller.slots[1]}-${_controller.spinTick}'),
-                  ),
-                  const SizedBox(width: CatSlotStyles.reelSpacing),
-                  ReelBox(
-                    emoji: _controller.slots[2],
-                    animateKey: ValueKey('2-${_controller.slots[2]}-${_controller.spinTick}'),
-                  ),
-                ],
+              SizedBox(
+                width: CatSlotStyles.reelRowWidth,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ReelBox(
+                      emoji: _controller.slots[0],
+                      animateKey: ValueKey('0-${_controller.slots[0]}-${_controller.spinTick}'),
+                    ),
+                    ReelBox(
+                      emoji: _controller.slots[1],
+                      animateKey: ValueKey('1-${_controller.slots[1]}-${_controller.spinTick}'),
+                    ),
+                    ReelBox(
+                      emoji: _controller.slots[2],
+                      animateKey: ValueKey('2-${_controller.slots[2]}-${_controller.spinTick}'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: CatSlotStyles.sectionSpacing),
               if (_controller.coins > 0)
