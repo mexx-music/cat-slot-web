@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'features/cat_slot/cat_slot_page.dart';
+import 'features/cat_slot/loading_screen.dart';
 
 class CatSlotApp extends StatelessWidget {
   const CatSlotApp({super.key});
@@ -9,7 +9,7 @@ class CatSlotApp extends StatelessWidget {
     return MaterialApp(
       title: 'Cat Slot',
       debugShowCheckedModeBanner: false,
-      home: const CatSlotPage(),
+      home: const LoadingScreen(),
     );
   }
 }

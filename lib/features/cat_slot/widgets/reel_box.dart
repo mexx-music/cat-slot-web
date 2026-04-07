@@ -1,21 +1,23 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../cat_slot_styles.dart';
+import '../data/slot_symbols.dart';
 
 /// Zeigt eine einzelne Slot-Rolle mit 3 sichtbaren Symbolen.
 ///
-/// - [symbols]  : die 3 aktuell sichtbaren Emojis [oben, mitte, unten]
-/// - [spinning] : true  → Band scrollt nach unten
-///                false → Band steht still
+/// - [spinning]     : true → Band scrollt kontinuierlich
+/// - [targetSymbol] : das mittlere Symbol, das nach dem Stopp sichtbar sein soll
 ///
-/// Das mittlere Symbol (Index 1) gilt als Ergebnis-Symbol.
+/// Das mittlere Symbol gilt als Ergebnis-Symbol.
 class ReelBox extends StatefulWidget {
-  final List<String> symbols; // genau 3 Einträge
   final bool spinning;
+  final String targetSymbol;
 
   const ReelBox({
     super.key,
-    required this.symbols,
     required this.spinning,
+    required this.targetSymbol,
   });
 
   @override
@@ -24,48 +26,116 @@ class ReelBox extends StatefulWidget {
 
 class _ReelBoxState extends State<ReelBox>
     with SingleTickerProviderStateMixin {
+  static const double _s = CatSlotStyles.reelSymbolSize;
+  static const int _bandSize = 32; // Anzahl Symbole im Band
+
   late AnimationController _ctrl;
+  late List<String> _band;  // langes Band aus Emojis
+  Timer? _stopTimer;
+
+  // Aktueller Pixel-Offset (absolut, nach unten positiv)
+  double _offset = 0;
 
   @override
   void initState() {
     super.initState();
+    _band = _buildBand(null);
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 320),
+      // Eine "Umdrehung" = ein Symbol-Slot (_s Pixel)
+      duration: const Duration(milliseconds: 120),
     );
-    if (widget.spinning) _ctrl.repeat();
+    if (widget.spinning) _startSpinning();
   }
 
   @override
-  void didUpdateWidget(ReelBox oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.spinning && !_ctrl.isAnimating) {
-      _ctrl.repeat();
-    } else if (!widget.spinning && _ctrl.isAnimating) {
-      _ctrl.stop();
-      _ctrl.reset();
+  void didUpdateWidget(ReelBox old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning && !old.spinning) {
+      _stopTimer?.cancel();
+      _startSpinning();
+    } else if (!widget.spinning && old.spinning) {
+      _scheduleStop();
     }
+  }
+
+  // ── Band aufbauen ─────────────────────────────────────────────
+  List<String> _buildBand(String? ensureAtCenter) {
+    final rng = Random();
+    final all = kSlotSymbols.map((s) => s.emoji).toList();
+    final band = List.generate(
+      _bandSize,
+      (_) => all[rng.nextInt(all.length)],
+    );
+    // Ziel-Symbol an eine feste Position setzen (Index 1 = Mitte des
+    // ersten sichtbaren Fensters im oberen Teil des Bandes)
+    if (ensureAtCenter != null) {
+      band[1] = ensureAtCenter;
+    }
+    return band;
+  }
+
+  // ── Endlos-Scroll starten ────────────────────────────────────
+  void _startSpinning() {
+    _ctrl.addListener(_onTick);
+    _ctrl.repeat();
+  }
+
+  void _onTick() {
+    setState(() {
+      _offset += _s * _ctrl.velocity * 0.016; // ~px pro Frame
+    });
+  }
+
+  // ── Sanft auf Ziel-Position einrasten ───────────────────────
+  void _scheduleStop() {
+    _stopTimer?.cancel();
+    _stopTimer = Timer(Duration.zero, _snapToTarget);
+  }
+
+  void _snapToTarget() {
+    if (!mounted) return;
+    _ctrl.removeListener(_onTick);
+    _ctrl.stop();
+
+    // Ziel-Symbol ins neue Band einbauen
+    final newBand = _buildBand(widget.targetSymbol);
+
+    // Wir wollen, dass nach dem Einrasten `_offset` so steht, dass
+    // `newBand[1]` in der Mitte des Fensters zu sehen ist.
+    // Fenster-Mitte = Symbol-Index 1 → top-offset = -_s * 1 + _s  (= 0-Linie)
+    // Wir scrollen den aktuellen Offset auf die nächste "saubere" Ziel-Position.
+    const double targetOffset = 0.0; // Band[1] landet genau in Fenster-Mitte
+
+    setState(() {
+      _band = newBand;
+      _offset = targetOffset;
+    });
+  }
+
+  // ── Normierter Offset fürs Rendering ────────────────────────
+  double get _displayOffset {
+    if (_band.isEmpty) return 0;
+    final totalHeight = _band.length * _s;
+    // Offset nach unten scrollen → Modulo für nahtlosen Loop
+    return _offset % totalHeight;
   }
 
   @override
   void dispose() {
+    _stopTimer?.cancel();
+    _ctrl.removeListener(_onTick);
     _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const double s = CatSlotStyles.reelSymbolSize;
     const double w = CatSlotStyles.reelWidth;
-    const double h = CatSlotStyles.reelWindowHeight; // = 3 * s
+    const double h = CatSlotStyles.reelWindowHeight; // = 3 * _s
 
-    // Band: 4 Symbole → beim Scroll von 0→s entsteht nahtloser Loop
-    final List<String> band = [
-      widget.symbols[2], // extra oben
-      widget.symbols[0],
-      widget.symbols[1],
-      widget.symbols[2],
-    ];
+    final double dy = _displayOffset;
+    final double totalH = _band.length * _s;
 
     return Container(
       width: w,
@@ -82,59 +152,53 @@ class _ReelBoxState extends State<ReelBox>
           ),
         ],
       ),
-      // ClipRRect + Stack mit hardEdge: verhindert jeden Render-Overflow
       child: ClipRRect(
         borderRadius: BorderRadius.circular(CatSlotStyles.reelBorderRadius),
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // ── Scrollendes Band ──────────────────────────────────
+            // ── Scrollendes Band (doppelt gerendert für nahtlosen Loop) ──
             AnimatedBuilder(
               animation: _ctrl,
               builder: (_, __) {
-                // _ctrl.value 0→1 entspricht einer Symbol-Höhe Versatz
-                final dy = _ctrl.value * s - s;
-                return Positioned(
-                  top: dy,
-                  left: 0,
-                  width: w,
-                  height: s * band.length,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: band
-                        .map((e) => SizedBox(
-                              width: w,
-                              height: s,
-                              child: Center(
-                                child: Text(
-                                  e,
-                                  style: const TextStyle(
-                                    fontSize: CatSlotStyles.reelEmojiFontSize,
-                                  ),
-                                ),
-                              ),
-                            ))
-                        .toList(),
-                  ),
+                return Stack(
+                  children: [
+                    // Erste Kopie
+                    Positioned(
+                      top: dy - totalH,
+                      left: 0,
+                      width: w,
+                      height: totalH,
+                      child: _buildBandColumn(w),
+                    ),
+                    // Zweite Kopie (direkt dahinter)
+                    Positioned(
+                      top: dy,
+                      left: 0,
+                      width: w,
+                      height: totalH,
+                      child: _buildBandColumn(w),
+                    ),
+                  ],
                 );
               },
             ),
 
-            // ── Trennlinien (oben/unten des mittleren Symbols) ───
+            // ── Trennlinien ──────────────────────────────────────────────
             Positioned(
-              top: s - 1,
+              top: _s - 1,
               left: 0,
               right: 0,
               child: Container(height: 2, color: const Color(0x33000000)),
             ),
             Positioned(
-              top: s * 2 - 1,
+              top: _s * 2 - 1,
               left: 0,
               right: 0,
               child: Container(height: 2, color: const Color(0x33000000)),
             ),
 
-            // ── Gradient-Overlay (oben/unten abdunkeln) ──────────
+            // ── Gradient-Overlay ─────────────────────────────────────────
             const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -155,6 +219,28 @@ class _ReelBoxState extends State<ReelBox>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBandColumn(double w) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: _band
+          .map(
+            (e) => SizedBox(
+              width: w,
+              height: _s,
+              child: Center(
+                child: Text(
+                  e,
+                  style: const TextStyle(
+                    fontSize: CatSlotStyles.reelEmojiFontSize,
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }

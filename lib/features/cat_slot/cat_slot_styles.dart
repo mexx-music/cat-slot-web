@@ -44,5 +44,10 @@ class CatSlotStyles {
 
   // Reset-Button
   static const Color  resetButtonColor = Color(0xFF4CAF50);
+
+  // Gewinnlinie
+  static const Color  winLineColor      = Color(0xFFFFD700); // Gold
+  static const double winLineThickness  = 3.0;
+  static const double winLineGlowSpread = 18.0;
 }
 

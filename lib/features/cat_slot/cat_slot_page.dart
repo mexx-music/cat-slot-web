@@ -65,29 +65,119 @@ class _CatSlotPageState extends State<CatSlotPage> {
                   const SizedBox(height: CatSlotStyles.titleSpacing),
                   BalanceLabel(coins: _controller.coins),
                   const SizedBox(height: CatSlotStyles.sectionSpacing),
-                  SizedBox(
-                    width: CatSlotStyles.reelRowWidth,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ReelBox(
-                          key: const ValueKey(0),
-                          symbols: _controller.reels[0],
-                          spinning: _controller.reelSpinning[0],
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: CatSlotStyles.reelRowWidth,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            ReelBox(
+                              key: const ValueKey(0),
+                              targetSymbol: _controller.slots[0],
+                              spinning: _controller.reelSpinning[0],
+                            ),
+                            ReelBox(
+                              key: const ValueKey(1),
+                              targetSymbol: _controller.slots[1],
+                              spinning: _controller.reelSpinning[1],
+                            ),
+                            ReelBox(
+                              key: const ValueKey(2),
+                              targetSymbol: _controller.slots[2],
+                              spinning: _controller.reelSpinning[2],
+                            ),
+                          ],
                         ),
-                        ReelBox(
-                          key: const ValueKey(1),
-                          symbols: _controller.reels[1],
-                          spinning: _controller.reelSpinning[1],
+                      ),
+                      // ── Gewinnlinie-Overlay ──────────────────────────────
+                      AnimatedOpacity(
+                        opacity: _controller.result == 'You win!' ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 350),
+                        child: IgnorePointer(
+                          child: SizedBox(
+                            width: CatSlotStyles.reelRowWidth,
+                            height: CatSlotStyles.reelWindowHeight,
+                            child: Stack(
+                              children: [
+                                // Glow-Hintergrund
+                                Positioned(
+                                  top: CatSlotStyles.reelSymbolSize -
+                                      CatSlotStyles.winLineGlowSpread,
+                                  left: 0,
+                                  right: 0,
+                                  height: CatSlotStyles.reelSymbolSize +
+                                      CatSlotStyles.winLineGlowSpread * 2,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.0),
+                                          CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.22),
+                                          CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.22),
+                                          CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.0),
+                                        ],
+                                        stops: const [0.0, 0.3, 0.7, 1.0],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // Obere Linie
+                                Positioned(
+                                  top: CatSlotStyles.reelSymbolSize -
+                                      CatSlotStyles.winLineThickness / 2,
+                                  left: 0,
+                                  right: 0,
+                                  height: CatSlotStyles.winLineThickness,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: CatSlotStyles.winLineColor,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.7),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Untere Linie
+                                Positioned(
+                                  top: CatSlotStyles.reelSymbolSize * 2 -
+                                      CatSlotStyles.winLineThickness / 2,
+                                  left: 0,
+                                  right: 0,
+                                  height: CatSlotStyles.winLineThickness,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: CatSlotStyles.winLineColor,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: CatSlotStyles.winLineColor
+                                              .withValues(alpha: 0.7),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        ReelBox(
-                          key: const ValueKey(2),
-                          symbols: _controller.reels[2],
-                          spinning: _controller.reelSpinning[2],
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: CatSlotStyles.sectionSpacing),
                   if (_controller.coins > 0)
