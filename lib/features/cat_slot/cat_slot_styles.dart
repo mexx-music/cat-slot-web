@@ -27,7 +27,9 @@ class CatSlotStyles {
 
   // Reel-Box
   static const double reelWidth         = 110;
-  static const double reelHeight        = 120;
+  static const double reelSymbolSize    = 80;   // Höhe eines einzelnen Symbols im Band
+  static const double reelWindowHeight  = reelSymbolSize * 3; // sichtbares Fenster = 3 Symbole
+  static const double reelHeight        = reelWindowHeight;
   static const double reelBorderRadius  = 18;
 
   // Gesamtbreite der drei Rollen (3 × reelWidth + 2 × reelSpacing)

@@ -44,54 +44,64 @@ class _CatSlotPageState extends State<CatSlotPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: CatSlotStyles.scaffoldBackground,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(CatSlotStyles.pagePadding),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Cat Slot',
-                style: TextStyle(
-                  fontSize: CatSlotStyles.titleFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: CatSlotStyles.pagePadding,
+                vertical: CatSlotStyles.pagePadding,
               ),
-              const SizedBox(height: CatSlotStyles.titleSpacing),
-              BalanceLabel(coins: _controller.coins),
-              const SizedBox(height: CatSlotStyles.sectionSpacing),
-              SizedBox(
-                width: CatSlotStyles.reelRowWidth,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    ReelBox(
-                      emoji: _controller.slots[0],
-                      animateKey: ValueKey('0-${_controller.slots[0]}-${_controller.spinTick}'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Cat Slot',
+                    style: TextStyle(
+                      fontSize: CatSlotStyles.titleFontSize,
+                      fontWeight: FontWeight.bold,
                     ),
-                    ReelBox(
-                      emoji: _controller.slots[1],
-                      animateKey: ValueKey('1-${_controller.slots[1]}-${_controller.spinTick}'),
+                  ),
+                  const SizedBox(height: CatSlotStyles.titleSpacing),
+                  BalanceLabel(coins: _controller.coins),
+                  const SizedBox(height: CatSlotStyles.sectionSpacing),
+                  SizedBox(
+                    width: CatSlotStyles.reelRowWidth,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ReelBox(
+                          key: const ValueKey(0),
+                          symbols: _controller.reels[0],
+                          spinning: _controller.reelSpinning[0],
+                        ),
+                        ReelBox(
+                          key: const ValueKey(1),
+                          symbols: _controller.reels[1],
+                          spinning: _controller.reelSpinning[1],
+                        ),
+                        ReelBox(
+                          key: const ValueKey(2),
+                          symbols: _controller.reels[2],
+                          spinning: _controller.reelSpinning[2],
+                        ),
+                      ],
                     ),
-                    ReelBox(
-                      emoji: _controller.slots[2],
-                      animateKey: ValueKey('2-${_controller.slots[2]}-${_controller.spinTick}'),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: CatSlotStyles.sectionSpacing),
+                  if (_controller.coins > 0)
+                    SpinButton(
+                      isSpinning: _controller.isSpinning,
+                      onPressed: _controller.isSpinning ? null : _onSpin,
+                    )
+                  else
+                    ResetButton(onPressed: _onReset),
+                  const SizedBox(height: CatSlotStyles.sectionSpacing),
+                  ResultLabel(text: _controller.result),
+                ],
               ),
-              const SizedBox(height: CatSlotStyles.sectionSpacing),
-              if (_controller.coins > 0)
-                SpinButton(
-                  isSpinning: _controller.isSpinning,
-                  onPressed: _controller.isSpinning ? null : _onSpin,
-                )
-              else
-                ResetButton(onPressed: _onReset),
-              const SizedBox(height: CatSlotStyles.sectionSpacing),
-              ResultLabel(text: _controller.result),
-            ],
+            ),
           ),
         ),
       ),
