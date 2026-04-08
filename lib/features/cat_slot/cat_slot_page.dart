@@ -3,6 +3,7 @@ import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
 import 'services/audio_service.dart';
 import 'widgets/balance_label.dart';
+import 'widgets/coin_fly_overlay.dart';
 import 'widgets/reel_box.dart';
 import 'widgets/reset_button.dart';
 import 'widgets/spin_button.dart';
@@ -20,7 +21,16 @@ class _CatSlotPageState extends State<CatSlotPage> {
   final AudioService _audio = AudioService();
 
   bool _showWinOverlay = false;
-  bool _winCollected   = true; // true = kein offener Gewinn
+  bool _winCollected   = true;
+  bool _showCoinFly    = false;
+
+  // GlobalKeys zum Ermitteln der Screen-Positionen
+  final GlobalKey _balanceKey = GlobalKey();
+  final GlobalKey _reelStackKey = GlobalKey();
+
+  // Ermittelte Positionen für die Coin-Animation
+  Offset _coinStart  = Offset.zero;
+  Offset _coinTarget = Offset.zero;
 
   @override
   void dispose() {
@@ -31,29 +41,51 @@ class _CatSlotPageState extends State<CatSlotPage> {
   Future<void> _onSpin() async {
     await _audio.ensureUnlocked();
     _audio.playSpinSound();
-    setState(() => _winCollected = true); // Highlight sofort aus
+    setState(() => _winCollected = true);
     await _controller.spin(() => setState(() {}));
     if (_controller.result == 'You win!') {
       _audio.playWinSound();
       setState(() {
         _showWinOverlay = true;
-        _winCollected   = false; // Gewinn offen → Highlight an
+        _winCollected   = false;
       });
     }
   }
 
+  /// Wird beim Klick auf COLLECT aufgerufen:
+  /// 1. Win-Overlay schließen
+  /// 2. Positionen ermitteln
+  /// 3. Coin-Fly-Animation starten
   void _onCollect() {
-    _controller.collectWin();
+    // Positionen jetzt ermitteln (Widgets sind noch im Tree)
+    final reelBox     = _reelStackKey.currentContext?.findRenderObject() as RenderBox?;
+    final balanceBox  = _balanceKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (reelBox != null && balanceBox != null) {
+      final reelSize    = reelBox.size;
+      final balanceSize = balanceBox.size;
+      _coinStart  = reelBox.localToGlobal(Offset(reelSize.width / 2, reelSize.height / 2));
+      _coinTarget = balanceBox.localToGlobal(Offset(balanceSize.width / 2, balanceSize.height / 2));
+    }
+
     setState(() {
       _showWinOverlay = false;
       _winCollected   = true;
+      _showCoinFly    = true;
     });
+  }
+
+  /// Wird aufgerufen wenn alle Münzen angekommen sind.
+  void _onCoinsDone() {
+    _controller.collectWin();
+    setState(() => _showCoinFly = false);
   }
 
   void _onReset() {
     setState(() {
       _showWinOverlay = false;
       _winCollected   = true;
+      _showCoinFly    = false;
       _controller.resetGame();
     });
   }
@@ -83,9 +115,13 @@ class _CatSlotPageState extends State<CatSlotPage> {
                         ),
                       ),
                       const SizedBox(height: CatSlotStyles.titleSpacing),
-                      BalanceLabel(coins: _controller.coins),
+                      KeyedSubtree(
+                        key: _balanceKey,
+                        child: BalanceLabel(coins: _controller.coins),
+                      ),
                       const SizedBox(height: CatSlotStyles.sectionSpacing),
                   Stack(
+                    key: _reelStackKey,
                     alignment: Alignment.center,
                     children: [
                       SizedBox(
@@ -144,6 +180,16 @@ class _CatSlotPageState extends State<CatSlotPage> {
           onCollect: _onCollect,
           coinsWon: _controller.pendingWin,
         ),
+        // ── Coin-Fly-Animation ───────────────────────────────────────
+        if (_showCoinFly)
+          Positioned.fill(
+            child: CoinFlyOverlay(
+              key: UniqueKey(),
+              startCenter:  _coinStart,
+              targetCenter: _coinTarget,
+              onDone: _onCoinsDone,
+            ),
+          ),
       ],
     );
   }

@@ -54,8 +54,17 @@ class CatSlotStyles {
   static const Color  winPulseColor     = Color(0xFFFFD700); // Gold
 
   // Win-Overlay
-  static const Color  winOverlayBg     = Color(0xCC1A0A3B); // dunkles Lila, halbtransparent
-  static const Color  winOverlayText   = Color(0xFFFFD700); // Gold
+  static const Color  winOverlayBg      = Color(0xCC1A0A3B);
+  static const Color  winOverlayText    = Color(0xFFFFD700);
   static const double winOverlayFontSize = 52;
+
+  // Coin-Fly-Animation
+  static const double   coinSize         = 36.0;  // Flug-Münzen
+  static const double   heroCoinSize     = 130.0; // große Hero-Coin vor dem Flug
+  static const int      coinCount        = 7;
+  static const Duration coinHeroDuration = Duration(milliseconds: 600);  // Hero einblenden
+  static const Duration coinHoldDuration = Duration(milliseconds: 520);  // sichtbare Pause
+  static const Duration coinFlyDuration  = Duration(milliseconds: 820);  // Flugdauer pro Münze
+  static const int      coinStaggerMs    = 55;    // Versatz zwischen Münzen
 }
 
