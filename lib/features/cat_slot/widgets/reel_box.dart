@@ -6,18 +6,19 @@ import '../data/slot_symbols.dart';
 
 /// Zeigt eine einzelne Slot-Rolle mit 3 sichtbaren Symbolen.
 ///
-/// - [spinning]     : true → Band scrollt kontinuierlich
-/// - [targetSymbol] : das mittlere Symbol, das nach dem Stopp sichtbar sein soll
-///
-/// Das mittlere Symbol gilt als Ergebnis-Symbol.
+/// - [spinning]       : true → Band scrollt kontinuierlich
+/// - [targetSymbol]   : das mittlere Symbol, das nach dem Stopp sichtbar sein soll
+/// - [highlightCenter]: true → mittleres Symbol pulsiert (Gewinn-Hervorhebung)
 class ReelBox extends StatefulWidget {
   final bool spinning;
   final String targetSymbol;
+  final bool highlightCenter;
 
   const ReelBox({
     super.key,
     required this.spinning,
     required this.targetSymbol,
+    this.highlightCenter = false,
   });
 
   @override
@@ -25,37 +26,58 @@ class ReelBox extends StatefulWidget {
 }
 
 class _ReelBoxState extends State<ReelBox>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const double _s = CatSlotStyles.reelSymbolSize;
-  static const int _bandSize = 32; // Anzahl Symbole im Band
+  static const int _bandSize = 32;
 
-  late AnimationController _ctrl;
-  late List<String> _band;  // langes Band aus Emojis
+  late AnimationController _scrollCtrl;
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
+
+  late List<String> _band;
   Timer? _stopTimer;
-
-  // Aktueller Pixel-Offset (absolut, nach unten positiv)
   double _offset = 0;
 
   @override
   void initState() {
     super.initState();
     _band = _buildBand(null);
-    _ctrl = AnimationController(
+
+    _scrollCtrl = AnimationController(
       vsync: this,
-      // Eine "Umdrehung" = ein Symbol-Slot (_s Pixel)
       duration: const Duration(milliseconds: 120),
     );
+
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
     if (widget.spinning) _startSpinning();
+    if (widget.highlightCenter && !widget.spinning) _startPulse();
   }
 
   @override
   void didUpdateWidget(ReelBox old) {
     super.didUpdateWidget(old);
+
+    // Scroll-Logik
     if (widget.spinning && !old.spinning) {
       _stopTimer?.cancel();
       _startSpinning();
     } else if (!widget.spinning && old.spinning) {
       _scheduleStop();
+    }
+
+    // Pulse-Logik
+    if (widget.highlightCenter && !widget.spinning) {
+      if (!_pulseCtrl.isAnimating) _startPulse();
+    } else {
+      _pulseCtrl.stop();
+      _pulseCtrl.reset();
     }
   }
 
@@ -63,31 +85,23 @@ class _ReelBoxState extends State<ReelBox>
   List<String> _buildBand(String? ensureAtCenter) {
     final rng = Random();
     final all = kSlotSymbols.map((s) => s.emoji).toList();
-    final band = List.generate(
-      _bandSize,
-      (_) => all[rng.nextInt(all.length)],
-    );
-    // Ziel-Symbol an eine feste Position setzen (Index 1 = Mitte des
-    // ersten sichtbaren Fensters im oberen Teil des Bandes)
-    if (ensureAtCenter != null) {
-      band[1] = ensureAtCenter;
-    }
+    final band = List.generate(_bandSize, (_) => all[rng.nextInt(all.length)]);
+    if (ensureAtCenter != null) band[1] = ensureAtCenter;
     return band;
   }
 
-  // ── Endlos-Scroll starten ────────────────────────────────────
+  // ── Endlos-Scroll ────────────────────────────────────────────
   void _startSpinning() {
-    _ctrl.addListener(_onTick);
-    _ctrl.repeat();
+    _scrollCtrl.addListener(_onTick);
+    _scrollCtrl.repeat();
   }
 
   void _onTick() {
     setState(() {
-      _offset += _s * _ctrl.velocity * 0.016; // ~px pro Frame
+      _offset += _s * _scrollCtrl.velocity * 0.016;
     });
   }
 
-  // ── Sanft auf Ziel-Position einrasten ───────────────────────
   void _scheduleStop() {
     _stopTimer?.cancel();
     _stopTimer = Timer(Duration.zero, _snapToTarget);
@@ -95,44 +109,38 @@ class _ReelBoxState extends State<ReelBox>
 
   void _snapToTarget() {
     if (!mounted) return;
-    _ctrl.removeListener(_onTick);
-    _ctrl.stop();
-
-    // Ziel-Symbol ins neue Band einbauen
+    _scrollCtrl.removeListener(_onTick);
+    _scrollCtrl.stop();
     final newBand = _buildBand(widget.targetSymbol);
-
-    // Wir wollen, dass nach dem Einrasten `_offset` so steht, dass
-    // `newBand[1]` in der Mitte des Fensters zu sehen ist.
-    // Fenster-Mitte = Symbol-Index 1 → top-offset = -_s * 1 + _s  (= 0-Linie)
-    // Wir scrollen den aktuellen Offset auf die nächste "saubere" Ziel-Position.
-    const double targetOffset = 0.0; // Band[1] landet genau in Fenster-Mitte
-
     setState(() {
       _band = newBand;
-      _offset = targetOffset;
+      _offset = 0.0;
     });
   }
 
-  // ── Normierter Offset fürs Rendering ────────────────────────
+  // ── Puls-Animation ───────────────────────────────────────────
+  void _startPulse() {
+    _pulseCtrl.repeat(reverse: true);
+  }
+
   double get _displayOffset {
     if (_band.isEmpty) return 0;
-    final totalHeight = _band.length * _s;
-    // Offset nach unten scrollen → Modulo für nahtlosen Loop
-    return _offset % totalHeight;
+    return _offset % (_band.length * _s);
   }
 
   @override
   void dispose() {
     _stopTimer?.cancel();
-    _ctrl.removeListener(_onTick);
-    _ctrl.dispose();
+    _scrollCtrl.removeListener(_onTick);
+    _scrollCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     const double w = CatSlotStyles.reelWidth;
-    const double h = CatSlotStyles.reelWindowHeight; // = 3 * _s
+    const double h = CatSlotStyles.reelWindowHeight;
 
     final double dy = _displayOffset;
     final double totalH = _band.length * _s;
@@ -157,13 +165,12 @@ class _ReelBoxState extends State<ReelBox>
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // ── Scrollendes Band (doppelt gerendert für nahtlosen Loop) ──
+            // ── Scrollendes Band ──────────────────────────────────────
             AnimatedBuilder(
-              animation: _ctrl,
+              animation: _scrollCtrl,
               builder: (_, __) {
                 return Stack(
                   children: [
-                    // Erste Kopie
                     Positioned(
                       top: dy - totalH,
                       left: 0,
@@ -171,7 +178,6 @@ class _ReelBoxState extends State<ReelBox>
                       height: totalH,
                       child: _buildBandColumn(w),
                     ),
-                    // Zweite Kopie (direkt dahinter)
                     Positioned(
                       top: dy,
                       left: 0,
@@ -184,7 +190,45 @@ class _ReelBoxState extends State<ReelBox>
               },
             ),
 
-            // ── Trennlinien ──────────────────────────────────────────────
+            // ── Puls-Glow über dem mittleren Symbol ──────────────────
+            if (widget.highlightCenter && !widget.spinning)
+              AnimatedBuilder(
+                animation: _pulseAnim,
+                builder: (_, __) {
+                  final glow = _pulseAnim.value;
+                  return Positioned(
+                    top: _s,
+                    left: 0,
+                    right: 0,
+                    height: _s,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 0.85,
+                          colors: [
+                            CatSlotStyles.winPulseColor
+                                .withValues(alpha: 0.18 + glow * 0.30),
+                            CatSlotStyles.winPulseColor
+                                .withValues(alpha: 0.0),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: CatSlotStyles.winPulseColor
+                                .withValues(alpha: 0.25 + glow * 0.35),
+                            blurRadius: 12 + glow * 16,
+                            spreadRadius: glow * 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            // ── Trennlinien ───────────────────────────────────────────
             Positioned(
               top: _s - 1,
               left: 0,
@@ -198,7 +242,7 @@ class _ReelBoxState extends State<ReelBox>
               child: Container(height: 2, color: const Color(0x33000000)),
             ),
 
-            // ── Gradient-Overlay ─────────────────────────────────────────
+            // ── Gradient-Overlay ──────────────────────────────────────
             const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -244,3 +288,4 @@ class _ReelBoxState extends State<ReelBox>
     );
   }
 }
+

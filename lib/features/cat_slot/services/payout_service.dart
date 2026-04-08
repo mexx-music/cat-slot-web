@@ -1,10 +1,7 @@
+import '../data/slot_symbols.dart';
 import '../models/spin_result.dart';
 
 /// Kapselt die Gewinnprüfung für Cat Slot.
-///
-/// Aktuelle Regel: alle 3 Symbole gleich → Gewinn.
-/// Neue Regeln können hier später ergänzt werden,
-/// ohne Controller oder UI anzufassen.
 class PayoutService {
   const PayoutService();
 
@@ -13,9 +10,21 @@ class PayoutService {
         slots[0] == slots[1] &&
         slots[1] == slots[2];
 
+    if (!isWin) {
+      return const SpinResult(isWin: false, message: 'Try again', coinsWon: 0);
+    }
+
+    // Payout anhand des Gewinn-Symbols aus der zentralen Symbol-Liste lesen
+    final winEmoji = slots[0];
+    final symbol = kSlotSymbols.firstWhere(
+      (s) => s.emoji == winEmoji,
+      orElse: () => kSlotSymbols.first,
+    );
+
     return SpinResult(
-      isWin: isWin,
-      message: isWin ? 'You win!' : 'Try again',
+      isWin: true,
+      message: 'You win!',
+      coinsWon: symbol.payout,
     );
   }
 }

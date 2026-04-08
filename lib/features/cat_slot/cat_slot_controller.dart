@@ -6,27 +6,25 @@ import 'services/payout_service.dart';
 class CatSlotController {
   static const int _startCoins = 10;
   static const int _spinCost   = 1;
-  static const int _winPayout  = 3;
 
   final Random _random = Random();
   final PayoutService _payout = const PayoutService();
 
-  /// 3 Rollen, jede mit 3 sichtbaren Symbolen [oben, mitte, unten].
-  /// Das mittlere Symbol (Index 1) jeder Rolle ist das Ergebnis-Symbol.
   List<List<String>> reels = [
     _initialStrip(0),
     _initialStrip(1),
     _initialStrip(2),
   ];
 
-  /// Welche Rollen gerade animiert (spinning) sind.
   List<bool> reelSpinning = [false, false, false];
 
-  String result   = '';
-  bool isSpinning = false;
-  int coins       = _startCoins;
+  String result    = '';
+  bool isSpinning  = false;
+  int coins        = _startCoins;
 
-  /// Bequemer Zugriff: das mittlere Symbol jeder Rolle als flache Liste.
+  /// Ausstehender Gewinn – wird erst beim Collect gutgeschrieben.
+  int pendingWin   = 0;
+
   List<String> get slots => reels.map((r) => r[1]).toList();
 
   static List<String> _initialStrip(int offset) {
@@ -41,15 +39,18 @@ class CatSlotController {
   String randomCat() =>
       kSlotSymbols[_random.nextInt(kSlotSymbols.length)].emoji;
 
-  /// Erzeugt einen zufälligen 3er-Strip mit gegebenem Mitte-Symbol.
-  List<String> randomStrip(String centerEmoji) {
-    return [randomCat(), centerEmoji, randomCat()];
-  }
+  List<String> randomStrip(String centerEmoji) =>
+      [randomCat(), centerEmoji, randomCat()];
 
   List<String> randomSlots() =>
       List.generate(3, (_) => randomCat());
 
-  /// Führt einen vollständigen Spin-Ablauf aus.
+  /// Schreibt den ausstehenden Gewinn gut (Collect-Schritt).
+  void collectWin() {
+    coins      += pendingWin;
+    pendingWin  = 0;
+  }
+
   Future<void> spin(void Function() onUpdate) async {
     if (isSpinning) return;
 
@@ -59,33 +60,28 @@ class CatSlotController {
       return;
     }
 
-    isSpinning = true;
+    isSpinning   = true;
+    pendingWin   = 0;
     reelSpinning = [true, true, true];
-    coins -= _spinCost;
-    result = 'Spinning...';
+    coins       -= _spinCost;
+    result       = 'Spinning...';
     onUpdate();
 
-    // Alle Rollen gemeinsam schnell drehen – Symbole randomisieren
     for (int i = 0; i < 8; i++) {
       reels = reels.map((r) => randomStrip(randomCat())).toList();
       onUpdate();
       await Future.delayed(const Duration(milliseconds: 90));
     }
 
-    // Finales Ergebnis festlegen
     final finalCenters = randomSlots();
 
-    // Rollen nacheinander stoppen
     for (int i = 0; i < 3; i++) {
-      // Noch ein paar Schritte weiterdrehen bevor stopp
       for (int j = 0; j < 4; j++) {
         reels[i] = randomStrip(randomCat());
         onUpdate();
         await Future.delayed(const Duration(milliseconds: 85));
       }
-
-      // Finale Position setzen, Rolle stoppen
-      reels[i] = randomStrip(finalCenters[i]);
+      reels[i]        = randomStrip(finalCenters[i]);
       reelSpinning[i] = false;
       onUpdate();
       await Future.delayed(const Duration(milliseconds: 160));
@@ -93,16 +89,19 @@ class CatSlotController {
 
     isSpinning = false;
     final spinResult = _payout.evaluate(slots);
-    if (spinResult.isWin) coins += _winPayout;
+
+    // Gewinn nur vormerken – Gutschrift erfolgt beim Collect
+    if (spinResult.isWin) pendingWin = spinResult.coinsWon;
+
     result = spinResult.message;
     onUpdate();
   }
 
-  /// Setzt das Spiel auf den Ausgangszustand zurück.
   void resetGame() {
-    coins      = _startCoins;
-    result     = '';
-    isSpinning = false;
+    coins        = _startCoins;
+    pendingWin   = 0;
+    result       = '';
+    isSpinning   = false;
     reelSpinning = [false, false, false];
     reels = [
       _initialStrip(0),

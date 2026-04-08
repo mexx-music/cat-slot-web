@@ -49,5 +49,13 @@ class CatSlotStyles {
   static const Color  winLineColor      = Color(0xFFFFD700); // Gold
   static const double winLineThickness  = 3.0;
   static const double winLineGlowSpread = 18.0;
+
+  // Win-Pulse (Blinken der mittleren Gewinnsymbole)
+  static const Color  winPulseColor     = Color(0xFFFFD700); // Gold
+
+  // Win-Overlay
+  static const Color  winOverlayBg     = Color(0xCC1A0A3B); // dunkles Lila, halbtransparent
+  static const Color  winOverlayText   = Color(0xFFFFD700); // Gold
+  static const double winOverlayFontSize = 52;
 }
 
