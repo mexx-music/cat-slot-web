@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../cat_slot_styles.dart';
 import '../data/slot_symbols.dart';
+import '../models/slot_symbol.dart';
+import 'symbol_display.dart';
 
 /// Zeigt eine einzelne Slot-Rolle mit 3 sichtbaren Symbolen.
 ///
@@ -34,7 +36,7 @@ class _ReelBoxState extends State<ReelBox>
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
-  late List<String> _band;
+  late List<SlotSymbol> _band;
   Timer? _stopTimer;
   double _offset = 0;
 
@@ -82,11 +84,18 @@ class _ReelBoxState extends State<ReelBox>
   }
 
   // ── Band aufbauen ─────────────────────────────────────────────
-  List<String> _buildBand(String? ensureAtCenter) {
+  List<SlotSymbol> _buildBand(String? targetEmoji) {
     final rng = Random();
-    final all = kSlotSymbols.map((s) => s.emoji).toList();
+    final all = kSlotSymbols;
     final band = List.generate(_bandSize, (_) => all[rng.nextInt(all.length)]);
-    if (ensureAtCenter != null) band[1] = ensureAtCenter;
+    if (targetEmoji != null) {
+      // Ziel-Symbol per Emoji suchen, Fallback: erstes Symbol
+      final target = all.firstWhere(
+        (s) => s.emoji == targetEmoji,
+        orElse: () => all.first,
+      );
+      band[1] = target;
+    }
     return band;
   }
 
@@ -271,16 +280,11 @@ class _ReelBoxState extends State<ReelBox>
       mainAxisSize: MainAxisSize.min,
       children: _band
           .map(
-            (e) => SizedBox(
+            (symbol) => SizedBox(
               width: w,
               height: _s,
               child: Center(
-                child: Text(
-                  e,
-                  style: const TextStyle(
-                    fontSize: CatSlotStyles.reelEmojiFontSize,
-                  ),
-                ),
+                child: SymbolDisplay(symbol: symbol),
               ),
             ),
           )

@@ -109,4 +109,14 @@ class CatSlotController {
       _initialStrip(2),
     ];
   }
+
+  /// Baut die sichtbaren Rollen neu auf Basis des aktuell aktiven Sets auf.
+  /// Wird nach einem Set-Wechsel aufgerufen.
+  void refreshReels() {
+    reels = [
+      _initialStrip(0),
+      _initialStrip(1),
+      _initialStrip(2),
+    ];
+  }
 }

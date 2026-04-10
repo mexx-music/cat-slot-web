@@ -16,10 +16,17 @@ class CatSlotStyles {
   static const double titleSpacing      = 30;
 
   // Text
-  static const double titleFontSize     = 42;
-  static const double buttonFontSize    = 24;
-  static const double resultFontSize    = 28;
-  static const double reelEmojiFontSize = 56;
+  static const double titleFontSize       = 42;
+  static const double buttonFontSize      = 24;
+  static const double resultFontSize      = 28;
+  static const double reelEmojiFontSize   = 56;
+
+  /// Einheitliche sichtbare Symbolfläche für Emojis und Bilder.
+  /// Beide werden in diesem quadratischen Bereich zentriert dargestellt.
+  static const double symbolDisplaySize   = 62.0;
+  /// Emoji-Schriftgröße innerhalb der symbolDisplaySize-Box.
+  /// Leicht kleiner als früher damit Emojis nicht größer wirken als Bilder.
+  static const double symbolEmojiFontSize = 44.0;
 
   // Button-Größen
   static const double buttonWidth       = 220;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
+import 'data/slot_symbol_sets.dart';
+import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
 import 'widgets/balance_label.dart';
 import 'widgets/coin_fly_overlay.dart';
@@ -8,6 +10,7 @@ import 'widgets/reel_box.dart';
 import 'widgets/reset_button.dart';
 import 'widgets/spin_button.dart';
 import 'widgets/result_label.dart';
+import 'widgets/symbol_set_selector.dart';
 
 class CatSlotPage extends StatefulWidget {
   const CatSlotPage({super.key});
@@ -24,6 +27,9 @@ class _CatSlotPageState extends State<CatSlotPage> {
   bool _winCollected   = true;
   bool _showCoinFly    = false;
 
+  // Aktives Symbol-Set
+  SymbolSet _activeSet = kActiveSymbolSet;
+
   // GlobalKeys zum Ermitteln der Screen-Positionen
   final GlobalKey _balanceKey = GlobalKey();
   final GlobalKey _reelStackKey = GlobalKey();
@@ -36,6 +42,19 @@ class _CatSlotPageState extends State<CatSlotPage> {
   void dispose() {
     _audio.dispose();
     super.dispose();
+  }
+
+  /// Wechselt das aktive Symbol-Set und baut die Rollen neu auf.
+  void _onSetChanged(SymbolSet set) {
+    if (_controller.isSpinning) return; // kein Wechsel während Spin
+    setState(() {
+      kActiveSymbolSet = set;
+      _activeSet = set;
+      _controller.refreshReels();
+      // Gewinn-Zustand zurücksetzen damit kein veraltetes Highlighting bleibt
+      _winCollected   = true;
+      _showWinOverlay = false;
+    });
   }
 
   Future<void> _onSpin() async {
@@ -113,6 +132,12 @@ class _CatSlotPageState extends State<CatSlotPage> {
                           fontSize: CatSlotStyles.titleFontSize,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      // ── Set-Auswahl (optional, leicht entfernbar) ────────
+                      SymbolSetSelector(
+                        activeSet: _activeSet,
+                        onChanged: _onSetChanged,
                       ),
                       const SizedBox(height: CatSlotStyles.titleSpacing),
                       KeyedSubtree(
