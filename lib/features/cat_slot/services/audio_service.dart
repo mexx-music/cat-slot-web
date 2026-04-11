@@ -116,18 +116,18 @@ class AudioService {
 
     final mod = ctx.createOscillator();
     mod.type = 'sine';
-    mod.frequency.value = 25;
+    mod.frequency.value = 20; // ruhigeres Vibrato
 
     final modGain = ctx.createGain();
-    modGain.gain.value = 8;
+    modGain.gain.value = 6; // weniger Frequenzabweichung
 
     final osc = ctx.createOscillator();
     osc.type = 'sawtooth';
-    osc.frequency.value = 60; // eine Oktave tiefer als vorher (120 Hz)
+    osc.frequency.value = 40; // tiefer und ruhiger
 
     final gain = ctx.createGain();
     gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.09, t + 0.3);
+    gain.gain.linearRampToValueAtTime(0.05, t + 0.3); // leiser
 
     _connect(mod, modGain);
     _connectParam(modGain, osc.frequency);

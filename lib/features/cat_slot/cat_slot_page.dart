@@ -201,10 +201,10 @@ class _CatSlotPageState extends State<CatSlotPage> {
                     ],
                   ),
                   const SizedBox(height: CatSlotStyles.sectionSpacing),
-                  if (_controller.coins > 0)
+                  if (_controller.coins > 0 || _controller.isSpinning || _showWinOverlay || _showCoinFly)
                     SpinButton(
                       isSpinning: _controller.isSpinning,
-                      onPressed: _controller.isSpinning ? null : _onSpin,
+                      onPressed: _controller.isSpinning || _controller.coins <= 0 ? null : _onSpin,
                     )
                   else
                     ResetButton(onPressed: _onReset),
