@@ -58,13 +58,14 @@ class _CatSlotPageState extends State<CatSlotPage> {
   }
 
   Future<void> _onSpin() async {
-    await _audio.ensureUnlocked();
-    _audio.playSpinSound();
+    await _audio.ensureUnlockedAndPreload(); // iOS: Preload beim ersten Tap
+    _audio.playSpinSound();                  // startet Purr-Loop
     setState(() => _winCollected = true);
     await _controller.spin(
       () => setState(() {}),
       onReelStop: (i) => _audio.playReelStopSound(i),
     );
+    _audio.stopPurrLoop(); // Purr immer stoppen nach Spin-Ende
     if (_controller.result == 'You win!') {
       _audio.playWinSound();
       setState(() {

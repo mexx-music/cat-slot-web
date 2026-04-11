@@ -1,19 +1,25 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 
-/// Einfacher Audio-Service für Cat Slot SFX.
+/// Audio-Service für Cat Slot SFX.
+///
+/// iOS/iPad-Strategie:
+///   Nach der ersten echten User-Interaktion werden ALLE Player
+///   mit ihrem Source vorgeladen (setSource + resume + pause).
+///   iOS Safari gibt den AudioContext dadurch frei, sodass
+///   spätere play()-Aufrufe sofort und ohne Verzögerung feuern.
 ///
 /// Asset-Pfade:
-///   assets/audio/spin.mp3
-///   assets/audio/stop.mp3          ← für alle 3 Rollen (gleiche Datei)
-///   assets/audio/stop_reel_0.mp3   ← optional: eigener Sound für Rolle 0
-///   assets/audio/stop_reel_1.mp3   ← optional: eigener Sound für Rolle 1
-///   assets/audio/stop_reel_2.mp3   ← optional: eigener Sound für Rolle 2
+///   assets/audio/purr_loop.mp3     ← Loop während Spin
+///   assets/audio/stop.mp3          ← Fallback Reel-Stop
+///   assets/audio/stop_reel_0.mp3   ← Miau Rolle 0
+///   assets/audio/stop_reel_1.mp3   ← Miau Rolle 1
+///   assets/audio/stop_reel_2.mp3   ← Miau Rolle 2
 ///   assets/audio/win.mp3
 ///   assets/audio/collect.mp3
 class AudioService {
-  final AudioPlayer _spinPlayer    = AudioPlayer();
-  // 3 separate Player für Reel-Stops (parallel abspielbar)
+  // ── Player ────────────────────────────────────────────────────
+  final AudioPlayer _purrPlayer    = AudioPlayer();
   final List<AudioPlayer> _reelStopPlayers = [
     AudioPlayer(),
     AudioPlayer(),
@@ -22,71 +28,144 @@ class AudioService {
   final AudioPlayer _winPlayer     = AudioPlayer();
   final AudioPlayer _collectPlayer = AudioPlayer();
 
-  bool _unlocked = false;
-  Timer? _spinStopTimer;
+  // ── Zustand ───────────────────────────────────────────────────
+  bool _unlocked  = false;
+  bool _preloaded = false;
 
-  // Dateiname je Reel – einfach durch eigene Datei ersetzen wenn vorhanden
-  static const List<String> _reelStopSounds = [
+  static const String        _purrAsset    = 'audio/purr_loop.mp3';
+  static const String        _stopFallback = 'audio/stop.mp3';
+  static const List<String>  _reelStopAssets = [
     'audio/stop_reel_0.mp3',
     'audio/stop_reel_1.mp3',
     'audio/stop_reel_2.mp3',
   ];
-  // Fallback falls reel-spezifische Datei nicht vorhanden
-  static const String _stopFallback = 'audio/stop.mp3';
+  static const String _winAsset     = 'audio/win.mp3';
+  static const String _collectAsset = 'audio/collect.mp3';
 
-  Future<void> ensureUnlocked() async {
+  // ── Unlock + Preload ──────────────────────────────────────────
+
+  /// Muss beim ersten echten User-Tap aufgerufen werden.
+  ///
+  /// 1. Setzt den iOS Audio-Kontext frei
+  /// 2. Lädt alle Sounds in ihre Player (setSource)
+  /// 3. Startet jeden Player kurz (resume) und pausiert ihn sofort
+  ///    → iOS hält den AudioContext offen, spätere play()-Calls
+  ///      feuern ohne merkbare Latenz
+  Future<void> ensureUnlockedAndPreload() async {
     if (_unlocked) return;
     _unlocked = true;
+
+    await _preloadAll();
   }
 
-  /// Spin-Sound – stoppt automatisch nach [durationMs] ms.
-  void playSpinSound({int durationMs = 1500}) {
+  /// Rückwärts-kompatibel mit bestehendem Code.
+  Future<void> ensureUnlocked() => ensureUnlockedAndPreload();
+
+  Future<void> _preloadAll() async {
+    if (_preloaded) return;
+    _preloaded = true;
+
+    // Purr-Loop vorbereiten (Fallback: spin.mp3 wenn purr_loop fehlt)
+    await _warmUp(_purrPlayer,    _purrAsset,    loop: true);
+
+    // Reel-Stop-Sounds
+    for (int i = 0; i < 3; i++) {
+      await _warmUp(_reelStopPlayers[i], _reelStopAssets[i],
+          fallback: _stopFallback);
+    }
+
+    // Win + Collect
+    await _warmUp(_winPlayer,     _winAsset);
+    await _warmUp(_collectPlayer, _collectAsset);
+  }
+
+  /// Lädt einen Sound in den Player und macht ihn iOS-bereit.
+  Future<void> _warmUp(
+    AudioPlayer player,
+    String asset, {
+    bool loop = false,
+    String? fallback,
+  }) async {
+    try {
+      await player.setSource(AssetSource(asset));
+      if (loop) {
+        await player.setReleaseMode(ReleaseMode.loop);
+      } else {
+        await player.setReleaseMode(ReleaseMode.stop);
+      }
+      // iOS: kurz resume + sofort pause → AudioContext wird freigegeben
+      await player.resume();
+      await Future.delayed(const Duration(milliseconds: 30));
+      await player.pause();
+      await player.seek(Duration.zero);
+    } catch (_) {
+      // Fallback versuchen wenn Asset fehlt
+      if (fallback != null) {
+        try {
+          await player.setSource(AssetSource(fallback));
+          await player.setReleaseMode(ReleaseMode.stop);
+          await player.resume();
+          await Future.delayed(const Duration(milliseconds: 30));
+          await player.pause();
+          await player.seek(Duration.zero);
+        } catch (_) {
+          // Kein Sound verfügbar – ignorieren
+        }
+      }
+    }
+  }
+
+  // ── Purr-Loop (während Spin) ──────────────────────────────────
+
+  void startPurrLoop() {
     if (!_unlocked) return;
-    _spinStopTimer?.cancel();
-    _spinPlayer.stop();
-    _spinPlayer.play(AssetSource('audio/spin.mp3'), volume: 0.6);
-    _spinStopTimer = Timer(Duration(milliseconds: durationMs), () {
-      _spinPlayer.stop();
-    });
+    _purrPlayer.setVolume(0.55);
+    _purrPlayer.resume();
   }
 
-  /// Stop-Sound für eine einzelne Rolle (index 0–2).
-  /// Spielt reel-spezifischen Sound, Fallback auf stop.mp3.
+  void stopPurrLoop() {
+    _purrPlayer.stop();
+    _purrPlayer.seek(Duration.zero);
+  }
+
+  // ── Rückwärts-kompatibel: playSpinSound startet Purr-Loop ─────
+
+  void playSpinSound({int durationMs = 1500}) {
+    startPurrLoop();
+  }
+
+  // ── Reel-Stop-Sound (Miau pro Rolle) ─────────────────────────
+
   void playReelStopSound(int reelIndex) {
     if (!_unlocked) return;
     if (reelIndex < 0 || reelIndex > 2) return;
     final player = _reelStopPlayers[reelIndex];
-    player.stop();
-    // Versuche reel-spezifischen Sound, errorHandler fällt auf Fallback zurück
-    player.play(
-      AssetSource(_reelStopSounds[reelIndex]),
-      volume: 0.65,
-    ).catchError((_) {
-      player.play(AssetSource(_stopFallback), volume: 0.65);
-    });
+    player.seek(Duration.zero);
+    player.resume();
   }
 
-  /// Letzter Reel gestoppt – spielt keinen extra Sound mehr
-  /// (der letzte playReelStopSound-Aufruf reicht).
-  void playStopSound() {
-    // Kept for backwards compatibility – no-op, replaced by playReelStopSound
-  }
+  // no-op für Rückwärtskompatibilität
+  void playStopSound() {}
+
+  // ── Win + Collect ─────────────────────────────────────────────
 
   void playWinSound() {
     if (!_unlocked) return;
-    _winPlayer.stop();
-    _winPlayer.play(AssetSource('audio/win.mp3'), volume: 0.8);
+    stopPurrLoop(); // Purr stoppen wenn Gewinn
+    _winPlayer.seek(Duration.zero);
+    _winPlayer.resume();
   }
 
   void playCollectSound() {
     if (!_unlocked) return;
-    _collectPlayer.stop();
-    _collectPlayer.play(AssetSource('audio/collect.mp3'), volume: 0.75);
+    _collectPlayer.seek(Duration.zero);
+    _collectPlayer.resume();
   }
 
+  // ── Dispose ───────────────────────────────────────────────────
+
   Future<void> dispose() async {
-    _spinStopTimer?.cancel();
-    await _spinPlayer.dispose();
+    await _purrPlayer.dispose();
     for (final p in _reelStopPlayers) {
       await p.dispose();
     }
@@ -94,4 +173,3 @@ class AudioService {
     await _collectPlayer.dispose();
   }
 }
-
