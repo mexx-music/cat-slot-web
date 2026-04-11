@@ -51,7 +51,10 @@ class CatSlotController {
     pendingWin  = 0;
   }
 
-  Future<void> spin(void Function() onUpdate) async {
+  Future<void> spin(
+    void Function() onUpdate, {
+    void Function(int reelIndex)? onReelStop,
+  }) async {
     if (isSpinning) return;
 
     if (coins < _spinCost) {
@@ -83,6 +86,7 @@ class CatSlotController {
       }
       reels[i]        = randomStrip(finalCenters[i]);
       reelSpinning[i] = false;
+      onReelStop?.call(i);  // ← Sound-Callback pro Rolle
       onUpdate();
       await Future.delayed(const Duration(milliseconds: 160));
     }

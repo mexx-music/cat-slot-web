@@ -61,7 +61,10 @@ class _CatSlotPageState extends State<CatSlotPage> {
     await _audio.ensureUnlocked();
     _audio.playSpinSound();
     setState(() => _winCollected = true);
-    await _controller.spin(() => setState(() {}));
+    await _controller.spin(
+      () => setState(() {}),
+      onReelStop: (i) => _audio.playReelStopSound(i),
+    );
     if (_controller.result == 'You win!') {
       _audio.playWinSound();
       setState(() {
@@ -92,6 +95,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
       _winCollected   = true;
       _showCoinFly    = true;
     });
+    _audio.playCollectSound();
   }
 
   /// Wird aufgerufen wenn alle Münzen angekommen sind.
