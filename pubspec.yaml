@@ -58,6 +58,8 @@ flutter:
   uses-material-design: true
 
   assets:
+    # UI-Assets (Hintergrundbild etc.)
+    - assets/cat_slot/ui/
     # Classic Symbol-Set (eigene stilisierte Bilder)
     - assets/cat_slot/classic/
     # Real Cats Symbol-Set (echte Katzenfotos)

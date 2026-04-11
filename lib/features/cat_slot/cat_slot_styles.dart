@@ -5,9 +5,9 @@ class CatSlotStyles {
 
   // Farben
   static const Color scaffoldBackground = Color(0xFFF8F4FF);
-  static const Color reelBackground    = Colors.white;
-  static const Color reelBorder        = Colors.black12;
-  static const Color reelShadow        = Color(0x22000000);
+  static const Color reelBackground    = Color(0xBBFFFFFF); // halbtransparent → Background scheint durch
+  static const Color reelBorder        = Color(0x44FFFFFF); // weicher weißer Rand
+  static const Color reelShadow        = Color(0x33000000);
 
   // Abstände
   static const double pagePadding       = 24;
@@ -48,6 +48,16 @@ class CatSlotStyles {
   // Balance
   static const double balanceFontSize  = 20;
   static const Color  balanceColor     = Color(0xFF7B5EA7);
+
+  // ── Text auf dunklem Hintergrund ─────────────────────────────
+  static const Color  darkBgTextColor      = Colors.white;
+  static const Color  darkBgTextGlowColor  = Color(0xFFD0AAFF); // helles Lila
+  // Shadow-Liste für gut lesbare Schrift auf dunklem Bild
+  static const List<Shadow> darkBgTextShadows = [
+    Shadow(color: Color(0xFF9B59B6), blurRadius: 12),
+    Shadow(color: Color(0xFF6C3483), blurRadius: 28),
+    Shadow(color: Color(0x88000000), blurRadius: 4,  offset: Offset(1, 1)),
+  ];
 
   // Reset-Button
   static const Color  resetButtonColor = Color(0xFF4CAF50);

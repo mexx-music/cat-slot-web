@@ -14,8 +14,9 @@ class BalanceLabel extends StatelessWidget {
       'Coins: $coins',
       style: const TextStyle(
         fontSize: CatSlotStyles.balanceFontSize,
-        fontWeight: FontWeight.w600,
-        color: CatSlotStyles.balanceColor,
+        fontWeight: FontWeight.w700,
+        color: CatSlotStyles.darkBgTextColor,
+        shadows: CatSlotStyles.darkBgTextShadows,
       ),
     );
   }

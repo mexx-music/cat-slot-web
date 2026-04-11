@@ -113,8 +113,19 @@ class _CatSlotPageState extends State<CatSlotPage> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        // ── Hintergrundbild ───────────────────────────────────────────
+        Positioned.fill(
+          child: Image.asset(
+            'assets/cat_slot/ui/background.png',
+            fit: BoxFit.cover,
+            // Fallback: einfache Hintergrundfarbe wenn Bild noch fehlt
+            errorBuilder: (_, __, ___) => const ColoredBox(
+              color: CatSlotStyles.scaffoldBackground,
+            ),
+          ),
+        ),
         Scaffold(
-          backgroundColor: CatSlotStyles.scaffoldBackground,
+          backgroundColor: Colors.transparent,
           body: SafeArea(
             child: SingleChildScrollView(
               child: Center(
@@ -131,6 +142,8 @@ class _CatSlotPageState extends State<CatSlotPage> {
                         style: TextStyle(
                           fontSize: CatSlotStyles.titleFontSize,
                           fontWeight: FontWeight.bold,
+                          color: CatSlotStyles.darkBgTextColor,
+                          shadows: CatSlotStyles.darkBgTextShadows,
                         ),
                       ),
                       const SizedBox(height: 8),

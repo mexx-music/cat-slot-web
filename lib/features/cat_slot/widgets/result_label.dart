@@ -12,7 +12,9 @@ class ResultLabel extends StatelessWidget {
       text,
       style: const TextStyle(
         fontSize: CatSlotStyles.resultFontSize,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
+        color: CatSlotStyles.darkBgTextColor,
+        shadows: CatSlotStyles.darkBgTextShadows,
       ),
     );
   }

@@ -160,11 +160,11 @@ class _ReelBoxState extends State<ReelBox>
       decoration: BoxDecoration(
         color: CatSlotStyles.reelBackground,
         borderRadius: BorderRadius.circular(CatSlotStyles.reelBorderRadius),
-        border: Border.all(color: CatSlotStyles.reelBorder),
+        border: Border.all(color: CatSlotStyles.reelBorder, width: 1.5),
         boxShadow: const [
           BoxShadow(
-            blurRadius: 8,
-            offset: Offset(0, 3),
+            blurRadius: 12,
+            offset: Offset(0, 4),
             color: CatSlotStyles.reelShadow,
           ),
         ],
@@ -259,12 +259,12 @@ class _ReelBoxState extends State<ReelBox>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0x99F8F4FF),
+                      Color(0x55F8F4FF), // oben leicht abdunkeln
                       Color(0x00F8F4FF),
                       Color(0x00F8F4FF),
-                      Color(0x99F8F4FF),
+                      Color(0x55F8F4FF), // unten leicht abdunkeln
                     ],
-                    stops: [0.0, 0.25, 0.75, 1.0],
+                    stops: [0.0, 0.22, 0.78, 1.0],
                   ),
                 ),
               ),

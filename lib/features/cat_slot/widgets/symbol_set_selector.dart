@@ -26,8 +26,9 @@ class SymbolSetSelector extends StatelessWidget {
           'Set: ',
           style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: CatSlotStyles.balanceColor,
+            fontWeight: FontWeight.w600,
+            color: CatSlotStyles.darkBgTextColor,
+            shadows: CatSlotStyles.darkBgTextShadows,
           ),
         ),
         DropdownButton<SymbolSet>(
@@ -35,11 +36,14 @@ class SymbolSetSelector extends StatelessWidget {
           isDense: true,
           underline: const SizedBox.shrink(),
           borderRadius: BorderRadius.circular(10),
+          dropdownColor: const Color(0xFF2D1B4E), // dunkles Lila für Dropdown-Menü
           style: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: CatSlotStyles.balanceColor,
+            fontWeight: FontWeight.w700,
+            color: CatSlotStyles.darkBgTextColor,
+            shadows: CatSlotStyles.darkBgTextShadows,
           ),
+          iconEnabledColor: CatSlotStyles.darkBgTextColor,
           items: kAllSymbolSets
               .map(
                 (set) => DropdownMenuItem(
