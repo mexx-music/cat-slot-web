@@ -93,8 +93,12 @@ class CatSlotStyles {
   static const Duration winCounterDuration = Duration(milliseconds: 900);
 
   /// Schwellwerte für die Win-Tier-Anzeige (Beträge in PurrCoins).
+  /// Mit der finalen 3/4/5/7/10-Staffelung ergibt das:
+  ///   3, 4    → YOU WIN     (🐱, 😺)
+  ///   5, 7    → BIG WIN     (😸, 😹)
+  ///   10      → MEGA WIN    (😻 – Top-Cat-Combo)
   static const int winTierBig = 5;
-  static const int winTierMega = 8;
+  static const int winTierMega = 10;
 
   /// Sekundärer warmer Gold-Ton für Premium-Glow.
   static const Color winGoldDeep = Color(0xFFB8860B);

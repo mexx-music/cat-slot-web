@@ -438,7 +438,7 @@ class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(height: 22),
-              // ── COLLECT-Button ───────────────────────────────────
+              // ── COLLECT-Button (mit Reward-Bezug) ────────────────
               ElevatedButton(
                 onPressed: widget.onCollect,
                 style: ElevatedButton.styleFrom(
@@ -458,7 +458,7 @@ class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
                   ),
                   elevation: 0,
                 ),
-                child: const Text('COLLECT'),
+                child: Text('COLLECT +${widget.coinsWon}'),
               ),
             ],
           ),

@@ -2,81 +2,107 @@ import '../models/slot_symbol.dart';
 import '../models/symbol_set.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hilfsfunktion: Asset-Pfad für ein Symbol in einem Set
+// Kanonische PurrCoin-Staffelung (FINAL – set-übergreifend identisch)
+//
+//   😻  cat_heart      → 10 PurrCoins
+//   😹  cat_tears      →  7 PurrCoins
+//   😸  cat_joy        →  5 PurrCoins
+//   😺  cat_grinning   →  4 PurrCoins
+//   🐱  cat            →  3 PurrCoins
+//
+// Alle Sets MÜSSEN über _buildSymbols(...) konstruiert werden, damit Emoji,
+// Label und Payout nicht zwischen Sets driften können.
 // ─────────────────────────────────────────────────────────────────────────────
 
 String _asset(String setFolder, String symbolId) =>
     'assets/cat_slot/$setFolder/$symbolId.png';
 
+/// Erzeugt die finale Symbol-Liste für ein Set.
+/// Übergib [setFolder] für ein Set mit eigenen Bildern;
+/// ohne Argument entsteht das Standard-Set (Emoji-only).
+List<SlotSymbol> _buildSymbols({String? setFolder}) {
+  String? path(String id) => setFolder == null ? null : _asset(setFolder, id);
+  return [
+    SlotSymbol(
+      id: 'cat',
+      emoji: '🐱',
+      label: 'Cat',
+      payout: 3,
+      assetPath: path('cat'),
+    ),
+    SlotSymbol(
+      id: 'cat_grinning',
+      emoji: '😺',
+      label: 'Grinning Cat',
+      payout: 4,
+      assetPath: path('cat_grinning'),
+    ),
+    SlotSymbol(
+      id: 'cat_joy',
+      emoji: '😸',
+      label: 'Cat with Joy',
+      payout: 5,
+      assetPath: path('cat_joy'),
+    ),
+    SlotSymbol(
+      id: 'cat_tears',
+      emoji: '😹',
+      label: 'Cat with Tears',
+      payout: 7,
+      assetPath: path('cat_tears'),
+    ),
+    SlotSymbol(
+      id: 'cat_heart',
+      emoji: '😻',
+      label: 'Heart-Eyes Cat',
+      payout: 10,
+      assetPath: path('cat_heart'),
+    ),
+  ];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Set 1: Standard (Emojis) – kein assetPath, sofort funktionsfähig
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SymbolSet kStandardSet = SymbolSet(
+SymbolSet kStandardSet = SymbolSet(
   id: 'standard',
   label: 'Standard Icons',
-  symbols: [
-    SlotSymbol(id: 'cat',          emoji: '🐱', label: 'Cat',            payout: 3),
-    SlotSymbol(id: 'cat_grinning', emoji: '😺', label: 'Grinning Cat',   payout: 4),
-    SlotSymbol(id: 'cat_joy',      emoji: '😸', label: 'Cat with Joy',   payout: 5),
-    SlotSymbol(id: 'cat_tears',    emoji: '😹', label: 'Cat with Tears', payout: 7),
-    SlotSymbol(id: 'cat_heart',    emoji: '😻', label: 'Heart-Eyes Cat', payout: 10),
-  ],
+  symbols: _buildSymbols(),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Set 2: Classic – stilisierte eigene Bilder
 // Ordner: assets/cat_slot/classic/
-// Dateien: cat.png, cat_grinning.png, cat_joy.png, cat_tears.png, cat_heart.png
 // Solange Bilder fehlen, zeigt SymbolDisplay automatisch das Emoji als Fallback.
 // ─────────────────────────────────────────────────────────────────────────────
 
 SymbolSet kClassicSet = SymbolSet(
   id: 'classic',
   label: 'Classic',
-  symbols: [
-    SlotSymbol(id: 'cat',          emoji: '🐱', label: 'Cat',            payout: 3,  assetPath: _asset('classic', 'cat')),
-    SlotSymbol(id: 'cat_grinning', emoji: '😺', label: 'Grinning Cat',   payout: 4,  assetPath: _asset('classic', 'cat_grinning')),
-    SlotSymbol(id: 'cat_joy',      emoji: '😸', label: 'Cat with Joy',   payout: 5,  assetPath: _asset('classic', 'cat_joy')),
-    SlotSymbol(id: 'cat_tears',    emoji: '😹', label: 'Cat with Tears', payout: 7,  assetPath: _asset('classic', 'cat_tears')),
-    SlotSymbol(id: 'cat_heart',    emoji: '😻', label: 'Heart-Eyes Cat', payout: 10, assetPath: _asset('classic', 'cat_heart')),
-  ],
+  symbols: _buildSymbols(setFolder: 'classic'),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Set 3: Real Cats – echte Katzenfotos
 // Ordner: assets/cat_slot/real_cats/
-// Dateien: cat.png, cat_grinning.png, cat_joy.png, cat_tears.png, cat_heart.png
 // ─────────────────────────────────────────────────────────────────────────────
 
 SymbolSet kRealCatsSet = SymbolSet(
   id: 'real_cats',
   label: 'Real Cats',
-  symbols: [
-    SlotSymbol(id: 'cat',          emoji: '🐱', label: 'Cat',            payout: 3,  assetPath: _asset('real_cats', 'cat')),
-    SlotSymbol(id: 'cat_grinning', emoji: '😺', label: 'Grinning Cat',   payout: 4,  assetPath: _asset('real_cats', 'cat_grinning')),
-    SlotSymbol(id: 'cat_joy',      emoji: '😸', label: 'Cat with Joy',   payout: 5,  assetPath: _asset('real_cats', 'cat_joy')),
-    SlotSymbol(id: 'cat_tears',    emoji: '😹', label: 'Cat with Tears', payout: 7,  assetPath: _asset('real_cats', 'cat_tears')),
-    SlotSymbol(id: 'cat_heart',    emoji: '😻', label: 'Heart-Eyes Cat', payout: 10, assetPath: _asset('real_cats', 'cat_heart')),
-  ],
+  symbols: _buildSymbols(setFolder: 'real_cats'),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Set 4: Custom – eigene kreative Bilder
 // Ordner: assets/cat_slot/custom/
-// Dateien: cat.png, cat_grinning.png, cat_joy.png, cat_tears.png, cat_heart.png
 // ─────────────────────────────────────────────────────────────────────────────
 
 SymbolSet kCustomSet = SymbolSet(
   id: 'custom',
   label: 'Custom',
-  symbols: [
-    SlotSymbol(id: 'cat',          emoji: '🐱', label: 'Cat',            payout: 3,  assetPath: _asset('custom', 'cat')),
-    SlotSymbol(id: 'cat_grinning', emoji: '😺', label: 'Grinning Cat',   payout: 4,  assetPath: _asset('custom', 'cat_grinning')),
-    SlotSymbol(id: 'cat_joy',      emoji: '😸', label: 'Cat with Joy',   payout: 5,  assetPath: _asset('custom', 'cat_joy')),
-    SlotSymbol(id: 'cat_tears',    emoji: '😹', label: 'Cat with Tears', payout: 7,  assetPath: _asset('custom', 'cat_tears')),
-    SlotSymbol(id: 'cat_heart',    emoji: '😻', label: 'Heart-Eyes Cat', payout: 10, assetPath: _asset('custom', 'cat_heart')),
-  ],
+  symbols: _buildSymbols(setFolder: 'custom'),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
