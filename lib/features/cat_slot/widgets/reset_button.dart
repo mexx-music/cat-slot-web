@@ -11,23 +11,37 @@ class ResetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: CatSlotStyles.buttonWidth,
       height: CatSlotStyles.buttonHeight,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: CatSlotStyles.resetButtonColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CatSlotStyles.buttonBorderRadius),
-          ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        child: const Text(
-          'PLAY AGAIN',
-          style: TextStyle(
-            fontSize: CatSlotStyles.buttonFontSize,
-            fontWeight: FontWeight.bold,
+        borderRadius: BorderRadius.circular(CatSlotStyles.buttonBorderRadius),
+        border: Border.all(color: const Color(0xAAFFD700), width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x6666BB6A), blurRadius: 20, spreadRadius: 2),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(CatSlotStyles.buttonBorderRadius),
+          splashColor: const Color(0x33FFFFFF),
+          child: const Center(
+            child: Text(
+              'PLAY AGAIN',
+              style: TextStyle(
+                fontSize: CatSlotStyles.buttonFontSize,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       ),

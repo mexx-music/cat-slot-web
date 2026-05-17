@@ -27,8 +27,7 @@ class ReelBox extends StatefulWidget {
   State<ReelBox> createState() => _ReelBoxState();
 }
 
-class _ReelBoxState extends State<ReelBox>
-    with TickerProviderStateMixin {
+class _ReelBoxState extends State<ReelBox> with TickerProviderStateMixin {
   static const double _s = CatSlotStyles.reelSymbolSize;
   static const int _bandSize = 32;
 
@@ -54,9 +53,10 @@ class _ReelBoxState extends State<ReelBox>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
+    _pulseAnim = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
     if (widget.spinning) _startSpinning();
     if (widget.highlightCenter && !widget.spinning) _startPulse();
@@ -160,12 +160,17 @@ class _ReelBoxState extends State<ReelBox>
       decoration: BoxDecoration(
         color: CatSlotStyles.reelBackground,
         borderRadius: BorderRadius.circular(CatSlotStyles.reelBorderRadius),
-        border: Border.all(color: CatSlotStyles.reelBorder, width: 1.5),
+        border: Border.all(color: CatSlotStyles.reelBorder, width: 2.0),
         boxShadow: const [
           BoxShadow(
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            blurRadius: 24,
+            offset: Offset(0, 6),
             color: CatSlotStyles.reelShadow,
+          ),
+          BoxShadow(
+            blurRadius: 18,
+            spreadRadius: 1,
+            color: Color(0x55D4AF37), // Gold-Glow
           ),
         ],
       ),
@@ -217,16 +222,17 @@ class _ReelBoxState extends State<ReelBox>
                           center: Alignment.center,
                           radius: 0.85,
                           colors: [
-                            CatSlotStyles.winPulseColor
-                                .withValues(alpha: 0.18 + glow * 0.30),
-                            CatSlotStyles.winPulseColor
-                                .withValues(alpha: 0.0),
+                            CatSlotStyles.winPulseColor.withValues(
+                              alpha: 0.18 + glow * 0.30,
+                            ),
+                            CatSlotStyles.winPulseColor.withValues(alpha: 0.0),
                           ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: CatSlotStyles.winPulseColor
-                                .withValues(alpha: 0.25 + glow * 0.35),
+                            color: CatSlotStyles.winPulseColor.withValues(
+                              alpha: 0.25 + glow * 0.35,
+                            ),
                             blurRadius: 12 + glow * 16,
                             spreadRadius: glow * 4,
                           ),
@@ -242,16 +248,16 @@ class _ReelBoxState extends State<ReelBox>
               top: _s - 1,
               left: 0,
               right: 0,
-              child: Container(height: 2, color: const Color(0x33000000)),
+              child: Container(height: 1.5, color: const Color(0x66D4AF37)),
             ),
             Positioned(
               top: _s * 2 - 1,
               left: 0,
               right: 0,
-              child: Container(height: 2, color: const Color(0x33000000)),
+              child: Container(height: 1.5, color: const Color(0x66D4AF37)),
             ),
 
-            // ── Gradient-Overlay ──────────────────────────────────────
+            // ── Gradient-Overlay (dunkle Vignette) ────────────────────────────────
             const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -259,10 +265,10 @@ class _ReelBoxState extends State<ReelBox>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0x55F8F4FF), // oben leicht abdunkeln
-                      Color(0x00F8F4FF),
-                      Color(0x00F8F4FF),
-                      Color(0x55F8F4FF), // unten leicht abdunkeln
+                      Color(0x99000000),
+                      Color(0x00000000),
+                      Color(0x00000000),
+                      Color(0x99000000),
                     ],
                     stops: [0.0, 0.22, 0.78, 1.0],
                   ),
@@ -283,13 +289,10 @@ class _ReelBoxState extends State<ReelBox>
             (symbol) => SizedBox(
               width: w,
               height: _s,
-              child: Center(
-                child: SymbolDisplay(symbol: symbol),
-              ),
+              child: Center(child: SymbolDisplay(symbol: symbol)),
             ),
           )
           .toList(),
     );
   }
 }
-

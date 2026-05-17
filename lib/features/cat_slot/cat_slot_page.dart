@@ -24,8 +24,8 @@ class _CatSlotPageState extends State<CatSlotPage> {
   final AudioService _audio = AudioService();
 
   bool _showWinOverlay = false;
-  bool _winCollected   = true;
-  bool _showCoinFly    = false;
+  bool _winCollected = true;
+  bool _showCoinFly = false;
 
   // Aktives Symbol-Set
   SymbolSet _activeSet = kActiveSymbolSet;
@@ -35,7 +35,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
   final GlobalKey _reelStackKey = GlobalKey();
 
   // Ermittelte Positionen für die Coin-Animation
-  Offset _coinStart  = Offset.zero;
+  Offset _coinStart = Offset.zero;
   Offset _coinTarget = Offset.zero;
 
   @override
@@ -52,14 +52,14 @@ class _CatSlotPageState extends State<CatSlotPage> {
       _activeSet = set;
       _controller.refreshReels();
       // Gewinn-Zustand zurücksetzen damit kein veraltetes Highlighting bleibt
-      _winCollected   = true;
+      _winCollected = true;
       _showWinOverlay = false;
     });
   }
 
   Future<void> _onSpin() async {
     await _audio.ensureUnlockedAndPreload(); // iOS: Preload beim ersten Tap
-    _audio.playSpinSound();                  // startet Purr-Loop
+    _audio.playSpinSound(); // startet Purr-Loop
     setState(() => _winCollected = true);
     await _controller.spin(
       () => setState(() {}),
@@ -70,7 +70,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
       _audio.playWinSound();
       setState(() {
         _showWinOverlay = true;
-        _winCollected   = false;
+        _winCollected = false;
       });
     }
   }
@@ -81,20 +81,26 @@ class _CatSlotPageState extends State<CatSlotPage> {
   /// 3. Coin-Fly-Animation starten
   void _onCollect() {
     // Positionen jetzt ermitteln (Widgets sind noch im Tree)
-    final reelBox     = _reelStackKey.currentContext?.findRenderObject() as RenderBox?;
-    final balanceBox  = _balanceKey.currentContext?.findRenderObject() as RenderBox?;
+    final reelBox =
+        _reelStackKey.currentContext?.findRenderObject() as RenderBox?;
+    final balanceBox =
+        _balanceKey.currentContext?.findRenderObject() as RenderBox?;
 
     if (reelBox != null && balanceBox != null) {
-      final reelSize    = reelBox.size;
+      final reelSize = reelBox.size;
       final balanceSize = balanceBox.size;
-      _coinStart  = reelBox.localToGlobal(Offset(reelSize.width / 2, reelSize.height / 2));
-      _coinTarget = balanceBox.localToGlobal(Offset(balanceSize.width / 2, balanceSize.height / 2));
+      _coinStart = reelBox.localToGlobal(
+        Offset(reelSize.width / 2, reelSize.height / 2),
+      );
+      _coinTarget = balanceBox.localToGlobal(
+        Offset(balanceSize.width / 2, balanceSize.height / 2),
+      );
     }
 
     setState(() {
       _showWinOverlay = false;
-      _winCollected   = true;
-      _showCoinFly    = true;
+      _winCollected = true;
+      _showCoinFly = true;
     });
     _audio.playCollectSound();
   }
@@ -108,8 +114,8 @@ class _CatSlotPageState extends State<CatSlotPage> {
   void _onReset() {
     setState(() {
       _showWinOverlay = false;
-      _winCollected   = true;
-      _showCoinFly    = false;
+      _winCollected = true;
+      _showCoinFly = false;
       _controller.resetGame();
     });
   }
@@ -118,17 +124,17 @@ class _CatSlotPageState extends State<CatSlotPage> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // ── Hintergrundbild ───────────────────────────────────────────
+        // ── Hintergrundbild (Vegas) ──────────────────────────────────
         Positioned.fill(
           child: Image.asset(
-            'assets/cat_slot/ui/background.png',
+            'assets/cat_slot/ui/vegascat.png',
             fit: BoxFit.cover,
-            // Fallback: einfache Hintergrundfarbe wenn Bild noch fehlt
-            errorBuilder: (_, __, ___) => const ColoredBox(
-              color: CatSlotStyles.scaffoldBackground,
-            ),
+            errorBuilder: (_, __, ___) =>
+                const ColoredBox(color: CatSlotStyles.scaffoldBackground),
           ),
         ),
+        // Leichtes dunkles Overlay für Lesbarkeit
+        Positioned.fill(child: ColoredBox(color: Color(0x44000000))),
         Scaffold(
           backgroundColor: Colors.transparent,
           body: SafeArea(
@@ -142,81 +148,114 @@ class _CatSlotPageState extends State<CatSlotPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'Cat Slot',
-                        style: TextStyle(
-                          fontSize: CatSlotStyles.titleFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: CatSlotStyles.darkBgTextColor,
-                          shadows: CatSlotStyles.darkBgTextShadows,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // ── Set-Auswahl (optional, leicht entfernbar) ────────
-                      SymbolSetSelector(
-                        activeSet: _activeSet,
-                        onChanged: _onSetChanged,
-                      ),
-                      const SizedBox(height: CatSlotStyles.titleSpacing),
-                      KeyedSubtree(
-                        key: _balanceKey,
-                        child: BalanceLabel(coins: _controller.coins),
-                      ),
-                      const SizedBox(height: CatSlotStyles.sectionSpacing),
-                  Stack(
-                    key: _reelStackKey,
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
+                      // ── Info-Panel (Titel, Set, Balance) ────────────────
+                      Container(
                         width: CatSlotStyles.reelRowWidth,
-                        child: Row(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: CatSlotStyles.panelBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0x88D4AF37),
+                            width: 1,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x66000000),
+                              blurRadius: 20,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            ReelBox(
-                              key: const ValueKey(0),
-                              targetSymbol: _controller.slots[0],
-                              spinning: _controller.reelSpinning[0],
-                              highlightCenter: !_winCollected,
+                            const Text(
+                              'Cat Slot',
+                              style: TextStyle(
+                                fontSize: CatSlotStyles.titleFontSize,
+                                fontWeight: FontWeight.bold,
+                                color: CatSlotStyles.darkBgTextColor,
+                                shadows: CatSlotStyles.darkBgTextShadows,
+                              ),
                             ),
-                            ReelBox(
-                              key: const ValueKey(1),
-                              targetSymbol: _controller.slots[1],
-                              spinning: _controller.reelSpinning[1],
-                              highlightCenter: !_winCollected,
+                            const SizedBox(height: 4),
+                            SymbolSetSelector(
+                              activeSet: _activeSet,
+                              onChanged: _onSetChanged,
                             ),
-                            ReelBox(
-                              key: const ValueKey(2),
-                              targetSymbol: _controller.slots[2],
-                              spinning: _controller.reelSpinning[2],
-                              highlightCenter: !_winCollected,
+                            const SizedBox(height: 6),
+                            KeyedSubtree(
+                              key: _balanceKey,
+                              child: BalanceLabel(coins: _controller.coins),
                             ),
                           ],
                         ),
                       ),
-                      // ── Gewinnlinie-Overlay ──────────────────────────────
-                      _WinLineOverlay(
-                        visible: _controller.result == 'You win!',
+                      const SizedBox(height: 20),
+                      Stack(
+                        key: _reelStackKey,
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: CatSlotStyles.reelRowWidth,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                ReelBox(
+                                  key: const ValueKey(0),
+                                  targetSymbol: _controller.slots[0],
+                                  spinning: _controller.reelSpinning[0],
+                                  highlightCenter: !_winCollected,
+                                ),
+                                ReelBox(
+                                  key: const ValueKey(1),
+                                  targetSymbol: _controller.slots[1],
+                                  spinning: _controller.reelSpinning[1],
+                                  highlightCenter: !_winCollected,
+                                ),
+                                ReelBox(
+                                  key: const ValueKey(2),
+                                  targetSymbol: _controller.slots[2],
+                                  spinning: _controller.reelSpinning[2],
+                                  highlightCenter: !_winCollected,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // ── Gewinnlinie-Overlay ──────────────────────────────
+                          _WinLineOverlay(
+                            visible: _controller.result == 'You win!',
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 22),
+                      if (_controller.coins > 0 ||
+                          _controller.isSpinning ||
+                          _showWinOverlay ||
+                          _showCoinFly)
+                        SpinButton(
+                          isSpinning: _controller.isSpinning,
+                          onPressed:
+                              _controller.isSpinning || _controller.coins <= 0
+                              ? null
+                              : _onSpin,
+                        )
+                      else
+                        ResetButton(onPressed: _onReset),
+                      const SizedBox(height: 12),
+                      ResultLabel(text: _controller.result),
                     ],
                   ),
-                  const SizedBox(height: CatSlotStyles.sectionSpacing),
-                  if (_controller.coins > 0 || _controller.isSpinning || _showWinOverlay || _showCoinFly)
-                    SpinButton(
-                      isSpinning: _controller.isSpinning,
-                      onPressed: _controller.isSpinning || _controller.coins <= 0 ? null : _onSpin,
-                    )
-                  else
-                    ResetButton(onPressed: _onReset),
-                  const SizedBox(height: CatSlotStyles.sectionSpacing),
-                  ResultLabel(text: _controller.result),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    ),
         // ── Win-Overlay ─────────────────────────────────────────────
         _WinOverlay(
           visible: _showWinOverlay,
@@ -228,7 +267,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
           Positioned.fill(
             child: CoinFlyOverlay(
               key: UniqueKey(),
-              startCenter:  _coinStart,
+              startCenter: _coinStart,
               targetCenter: _coinTarget,
               onDone: _onCoinsDone,
             ),
@@ -260,9 +299,10 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _pulse = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _pulse = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
     if (widget.visible) _ctrl.repeat(reverse: true);
   }
 
@@ -297,40 +337,43 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
             builder: (_, __) {
               final t = _pulse.value;
               // Linienstärke und Glow pulsieren
-              final lineAlpha  = 0.75 + t * 0.25;          // 0.75 → 1.0
-              final glowBlur   = 6.0  + t * 18.0;          // 6 → 24
-              final glowSpread = 0.0  + t * 3.0;           // 0 → 3
-              final glowAlpha  = 0.3  + t * 0.5;           // 0.3 → 0.8
+              final lineAlpha = 0.75 + t * 0.25; // 0.75 → 1.0
+              final glowBlur = 6.0 + t * 18.0; // 6 → 24
+              final glowSpread = 0.0 + t * 3.0; // 0 → 3
+              final glowAlpha = 0.3 + t * 0.5; // 0.3 → 0.8
               // Sehr schmaler, kaum deckender Hintergrund-Glow
-              final bgAlpha    = 0.03 + t * 0.05;          // 0.03 → 0.08
+              final bgAlpha = 0.03 + t * 0.05; // 0.03 → 0.08
 
               Widget line(double top) => Positioned(
-                    top: top,
-                    left: 0,
-                    right: 0,
-                    height: CatSlotStyles.winLineThickness,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: CatSlotStyles.winLineColor
-                            .withValues(alpha: lineAlpha),
-                        boxShadow: [
-                          BoxShadow(
-                            color: CatSlotStyles.winLineColor
-                                .withValues(alpha: glowAlpha),
-                            blurRadius: glowBlur,
-                            spreadRadius: glowSpread,
-                          ),
-                          // zweiter, weiterer Glow-Ring
-                          BoxShadow(
-                            color: CatSlotStyles.winLineColor
-                                .withValues(alpha: glowAlpha * 0.4),
-                            blurRadius: glowBlur * 2.5,
-                            spreadRadius: 0,
-                          ),
-                        ],
-                      ),
+                top: top,
+                left: 0,
+                right: 0,
+                height: CatSlotStyles.winLineThickness,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: CatSlotStyles.winLineColor.withValues(
+                      alpha: lineAlpha,
                     ),
-                  );
+                    boxShadow: [
+                      BoxShadow(
+                        color: CatSlotStyles.winLineColor.withValues(
+                          alpha: glowAlpha,
+                        ),
+                        blurRadius: glowBlur,
+                        spreadRadius: glowSpread,
+                      ),
+                      // zweiter, weiterer Glow-Ring
+                      BoxShadow(
+                        color: CatSlotStyles.winLineColor.withValues(
+                          alpha: glowAlpha * 0.4,
+                        ),
+                        blurRadius: glowBlur * 2.5,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
+              );
 
               return Stack(
                 children: [
@@ -342,8 +385,9 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
                     height: CatSlotStyles.reelSymbolSize,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: CatSlotStyles.winLineColor
-                            .withValues(alpha: bgAlpha),
+                        color: CatSlotStyles.winLineColor.withValues(
+                          alpha: bgAlpha,
+                        ),
                       ),
                     ),
                   ),
@@ -388,13 +432,13 @@ class _WinOverlayState extends State<_WinOverlay>
     with TickerProviderStateMixin {
   // ── Eintritts-Animation (einmalig) ───────────────────────────
   late final AnimationController _entryCtrl;
-  late final Animation<double>   _fade;
-  late final Animation<double>   _entryScale;
+  late final Animation<double> _fade;
+  late final Animation<double> _entryScale;
 
   // ── Puls-Animation (dauerhaft, solange sichtbar) ─────────────
   late final AnimationController _pulseCtrl;
-  late final Animation<double>   _pulseOpacity;
-  late final Animation<double>   _pulseScale;
+  late final Animation<double> _pulseOpacity;
+  late final Animation<double> _pulseScale;
 
   @override
   void initState() {
@@ -406,21 +450,24 @@ class _WinOverlayState extends State<_WinOverlay>
       duration: const Duration(milliseconds: 420),
     );
     _fade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
-    _entryScale = Tween<double>(begin: 0.55, end: 1.0).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut),
-    );
+    _entryScale = Tween<double>(
+      begin: 0.55,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut));
 
     // Puls
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _pulseOpacity = Tween<double>(begin: 0.82, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-    _pulseScale = Tween<double>(begin: 1.0, end: 1.10).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
+    _pulseOpacity = Tween<double>(
+      begin: 0.82,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _pulseScale = Tween<double>(
+      begin: 1.0,
+      end: 1.10,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
     if (widget.visible) _playEntry();
   }
@@ -486,14 +533,16 @@ class _WinOverlayState extends State<_WinOverlay>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: CatSlotStyles.winLineColor
-                            .withValues(alpha: 0.65),
+                        color: CatSlotStyles.winLineColor.withValues(
+                          alpha: 0.65,
+                        ),
                         blurRadius: 56,
                         spreadRadius: 10,
                       ),
                       BoxShadow(
-                        color: CatSlotStyles.winLineColor
-                            .withValues(alpha: 0.25),
+                        color: CatSlotStyles.winLineColor.withValues(
+                          alpha: 0.25,
+                        ),
                         blurRadius: 130,
                         spreadRadius: 28,
                       ),
@@ -513,13 +562,15 @@ class _WinOverlayState extends State<_WinOverlay>
                           letterSpacing: 4,
                           shadows: [
                             Shadow(
-                              color: CatSlotStyles.winLineColor
-                                  .withValues(alpha: 1.0),
+                              color: CatSlotStyles.winLineColor.withValues(
+                                alpha: 1.0,
+                              ),
                               blurRadius: 28,
                             ),
                             Shadow(
-                              color: CatSlotStyles.winLineColor
-                                  .withValues(alpha: 0.6),
+                              color: CatSlotStyles.winLineColor.withValues(
+                                alpha: 0.6,
+                              ),
                               blurRadius: 64,
                             ),
                           ],
@@ -558,4 +609,3 @@ class _WinOverlayState extends State<_WinOverlay>
     );
   }
 }
-
