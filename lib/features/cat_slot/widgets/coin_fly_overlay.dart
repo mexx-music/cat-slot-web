@@ -15,11 +15,16 @@ class CoinFlyOverlay extends StatefulWidget {
   final Offset targetCenter;
   final VoidCallback onDone;
 
+  /// Called each time one flying coin reaches the target.
+  /// [coinIndex] is 0-based; last coin has index coinCount-1.
+  final void Function(int coinIndex)? onCoinArrived;
+
   const CoinFlyOverlay({
     super.key,
     required this.startCenter,
     required this.targetCenter,
     required this.onDone,
+    this.onCoinArrived,
   });
 
   @override
@@ -40,16 +45,19 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
 
   // ── Hero-Coin Animationen ────────────────────────────────────
   late final AnimationController _heroCtrl;
-  late final Animation<double>   _heroScale;
-  late final Animation<double>   _heroOpacity;
+  late final Animation<double> _heroScale;
+  late final Animation<double> _heroOpacity;
   // Puls nach dem Einblenden
   late final AnimationController _heroPulseCtrl;
-  late final Animation<double>   _heroPulse;
+  late final Animation<double> _heroPulse;
 
   // ── Fly-Coins ────────────────────────────────────────────────
-  final List<AnimationController> _flyCtrl  = [];
-  final List<Animation<double>>   _flyAnim  = [];
-  final List<Offset>              _scatter  = [];
+  final List<AnimationController> _flyCtrl = [];
+  final List<Animation<double>> _flyAnim = [];
+  final List<Offset> _scatter = [];
+  final List<double> _arcHeight = []; // px, varies per coin
+  final List<double> _arcBias = []; // lateral drift px
+  final List<double> _rotSpeed = []; // rotation cycles
   bool _doneFired = false;
   final _rng = Random();
 
@@ -62,34 +70,53 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
       vsync: this,
       duration: CatSlotStyles.coinHeroDuration,
     );
-    _heroScale = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _heroCtrl, curve: Curves.elasticOut),
-    );
-    _heroOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _heroCtrl, curve: Curves.easeOut),
-    );
+    _heroScale = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _heroCtrl, curve: Curves.elasticOut));
+    _heroOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _heroCtrl, curve: Curves.easeOut));
 
     // Puls während Hold
     _heroPulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    _heroPulse = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _heroPulseCtrl, curve: Curves.easeInOut),
-    );
+    _heroPulse = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _heroPulseCtrl, curve: Curves.easeInOut));
 
     // Fly-Coins vorbereiten
     for (int i = 0; i < _count; i++) {
-      _scatter.add(Offset(
-        (_rng.nextDouble() - 0.5) * 90,
-        (_rng.nextDouble() - 0.5) * 70,
-      ));
+      _scatter.add(
+        Offset((_rng.nextDouble() - 0.5) * 90, (_rng.nextDouble() - 0.5) * 70),
+      );
+      _arcHeight.add(38.0 + _rng.nextDouble() * 68.0); // 38..106 px
+      _arcBias.add((_rng.nextDouble() - 0.5) * 54.0); // ±27 px lateral
+      _rotSpeed.add(2.0 + _rng.nextDouble() * 3.0); // 2..5 rotation cycles
+
       final c = AnimationController(
         vsync: this,
         duration: CatSlotStyles.coinFlyDuration,
       );
+      // Status listener: notify caller + fire onDone for last coin
+      final idx = i;
+      c.addStatusListener((status) {
+        if (status != AnimationStatus.completed) return;
+        if (!mounted) return; // widget may already be disposed
+        widget.onCoinArrived?.call(idx);
+        if (idx == _count - 1 && !_doneFired) {
+          _doneFired = true;
+          widget.onDone();
+        }
+      });
       _flyCtrl.add(c);
-      _flyAnim.add(CurvedAnimation(parent: c, curve: Curves.easeInCubic));
+      // Alternate curve shapes for natural variety
+      final curve = i.isEven ? Curves.easeInCubic : Curves.easeIn;
+      _flyAnim.add(CurvedAnimation(parent: c, curve: curve));
     }
 
     _startHeroPhase();
@@ -128,14 +155,18 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
           if (mounted) _flyCtrl[i].forward();
         },
       );
-    }
-    // onDone nach letzter Münze
-    _flyCtrl.last.addStatusListener((s) {
-      if (s == AnimationStatus.completed && !_doneFired) {
+    } // Failsafe: falls der letzte Status-Listener nie feuert (z. B. durch
+    // schnelles Dispose), onDone spätestens nach voller Laufzeit aufrufen.
+    final safeguard =
+        CatSlotStyles.coinFlyDuration +
+        Duration(milliseconds: (_count - 1) * CatSlotStyles.coinStaggerMs) +
+        const Duration(milliseconds: 300);
+    Future.delayed(safeguard, () {
+      if (mounted && !_doneFired) {
         _doneFired = true;
         widget.onDone();
       }
-    });
+    }); // onDone is handled via per-coin status listeners set up in initState.
   }
 
   @override
@@ -160,10 +191,8 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
               animation: Listenable.merge([_heroCtrl, _heroPulseCtrl]),
               builder: (_, __) {
                 return Positioned(
-                  left: widget.startCenter.dx -
-                      CatSlotStyles.heroCoinSize / 2,
-                  top: widget.startCenter.dy -
-                      CatSlotStyles.heroCoinSize / 2,
+                  left: widget.startCenter.dx - CatSlotStyles.heroCoinSize / 2,
+                  top: widget.startCenter.dy - CatSlotStyles.heroCoinSize / 2,
                   child: Opacity(
                     opacity: _heroOpacity.value,
                     child: Transform.scale(
@@ -179,27 +208,39 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
           if (_phase == _Phase.fly)
             ...List.generate(_count, (i) {
               final start = widget.startCenter + _scatter[i];
-              final end   = widget.targetCenter;
+              final end = widget.targetCenter;
+              final arcH = _arcHeight[i];
+              final arcB = _arcBias[i];
+              final rotS = _rotSpeed[i];
               return AnimatedBuilder(
                 animation: _flyAnim[i],
                 builder: (_, __) {
+                  // Coin is invisible until its controller is actually started.
+                  if (_flyCtrl[i].status == AnimationStatus.dismissed) {
+                    return const SizedBox.shrink();
+                  }
                   final t = _flyAnim[i].value;
+                  final sinT = sin(t * pi);
                   final pos = Offset(
-                    _lerp(start.dx, end.dx, t),
-                    _lerp(start.dy, end.dy, t) - sin(t * pi) * 48,
+                    _lerp(start.dx, end.dx, t) + sinT * arcB,
+                    _lerp(start.dy, end.dy, t) - sinT * arcH,
                   );
-                  final scale   = (1.0 - t * 0.6).clamp(0.1, 1.0);
-                  final opacity = t < 0.72
+                  final scale = (1.0 - t * 0.55).clamp(0.1, 1.0);
+                  final opacity = t < 0.75
                       ? 1.0
-                      : ((1.0 - t) / 0.28).clamp(0.0, 1.0);
+                      : ((1.0 - t) / 0.25).clamp(0.0, 1.0);
+                  final rotation = sin(t * pi * rotS) * 0.45;
                   return Positioned(
                     left: pos.dx - CatSlotStyles.coinSize / 2,
-                    top:  pos.dy - CatSlotStyles.coinSize / 2,
+                    top: pos.dy - CatSlotStyles.coinSize / 2,
                     child: Opacity(
                       opacity: opacity,
                       child: Transform.scale(
                         scale: scale,
-                        child: const _FlyCoin(),
+                        child: Transform.rotate(
+                          angle: rotation,
+                          child: const _FlyCoin(),
+                        ),
                       ),
                     ),
                   );
@@ -234,13 +275,7 @@ class _HeroCoin extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Pfoten-Symbol
-              Text(
-                '🐾',
-                style: TextStyle(
-                  fontSize: s * 0.28,
-                  height: 1.0,
-                ),
-              ),
+              Text('🐾', style: TextStyle(fontSize: s * 0.28, height: 1.0)),
               Text(
                 'PURR',
                 style: TextStyle(
@@ -264,7 +299,7 @@ class _HeroCoinPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final r  = size.width / 2;
+    final r = size.width / 2;
 
     // ── Äußerer Glow ─────────────────────────────────────────
     final glowPaint = Paint()
@@ -353,7 +388,7 @@ class _FlyCoinPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final r  = size.width / 2;
+    final r = size.width / 2;
 
     // Glow
     canvas.drawCircle(

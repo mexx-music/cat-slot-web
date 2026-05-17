@@ -81,6 +81,25 @@ class CatSlotStyles {
   static const Color winOverlayText = Color(0xFFFFD700);
   static const double winOverlayFontSize = 52;
 
+  // ── Premium Win-Effekt (Phase 1 + Phase 2) ────────────────────
+  /// Dauer der Phase-1-Reveal-Sekunde (Burst über der Gewinnreihe).
+  static const Duration winRevealDuration = Duration(milliseconds: 650);
+
+  /// Wartezeit, in der nur Phase 1 (Burst + Reel-Pulse) sichtbar ist,
+  /// bevor das große Win-Panel eingeblendet wird.
+  static const Duration winPhase1Dwell = Duration(milliseconds: 520);
+
+  /// Dauer der Counter-Tick-Animation im Win-Panel.
+  static const Duration winCounterDuration = Duration(milliseconds: 900);
+
+  /// Schwellwerte für die Win-Tier-Anzeige (Beträge in PurrCoins).
+  static const int winTierBig = 5;
+  static const int winTierMega = 8;
+
+  /// Sekundärer warmer Gold-Ton für Premium-Glow.
+  static const Color winGoldDeep = Color(0xFFB8860B);
+  static const Color winGoldLight = Color(0xFFFFF1A8);
+
   // Coin-Fly-Animation
   static const double coinSize = 36.0; // Flug-Münzen
   static const double heroCoinSize = 130.0; // große Hero-Coin vor dem Flug

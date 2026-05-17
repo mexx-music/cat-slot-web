@@ -11,6 +11,7 @@ import 'widgets/reset_button.dart';
 import 'widgets/spin_button.dart';
 import 'widgets/result_label.dart';
 import 'widgets/symbol_set_selector.dart';
+import 'widgets/win_effect_overlay.dart';
 
 class CatSlotPage extends StatefulWidget {
   const CatSlotPage({super.key});
@@ -27,6 +28,10 @@ class _CatSlotPageState extends State<CatSlotPage> {
   bool _winCollected = true;
   bool _showCoinFly = false;
 
+  // Visual coin counter: increments per arriving coin during fly animation
+  int _displayCoins = 0;
+  int _coinFlyPendingWin = 0;
+
   // Aktives Symbol-Set
   SymbolSet _activeSet = kActiveSymbolSet;
 
@@ -37,6 +42,11 @@ class _CatSlotPageState extends State<CatSlotPage> {
   // Ermittelte Positionen für die Coin-Animation
   Offset _coinStart = Offset.zero;
   Offset _coinTarget = Offset.zero;
+
+  // Stabiler Key für CoinFlyOverlay – wird einmalig in _onCollect() gesetzt,
+  // damit Page-Rebuilds (z. B. aus _onCoinArrived) den Key NICHT erneut
+  // erzeugen und das laufende Overlay nicht zerstören.
+  Key _coinFlyKey = const ValueKey('coin-fly-initial');
 
   @override
   void dispose() {
@@ -97,6 +107,11 @@ class _CatSlotPageState extends State<CatSlotPage> {
       );
     }
 
+    _coinFlyPendingWin = _controller.pendingWin;
+    _displayCoins = _controller.coins;
+    // Neuen stabilen Key erzeugen BEVOR setState – bleibt in allen
+    // Folge-Rebuilds dieser Collect-Session konstant.
+    _coinFlyKey = UniqueKey();
     setState(() {
       _showWinOverlay = false;
       _winCollected = true;
@@ -105,10 +120,24 @@ class _CatSlotPageState extends State<CatSlotPage> {
     _audio.playCollectSound();
   }
 
+  /// Called once for each coin that arrives at the credits bar.
+  void _onCoinArrived(int coinIndex) {
+    final total = _coinFlyPendingWin;
+    const count = CatSlotStyles.coinCount;
+    final base = total ~/ count;
+    final extra = total % count;
+    // Distribute remainder across first `extra` coins
+    final increment = base + (coinIndex < extra ? 1 : 0);
+    if (increment > 0) setState(() => _displayCoins += increment);
+  }
+
   /// Wird aufgerufen wenn alle Münzen angekommen sind.
   void _onCoinsDone() {
     _controller.collectWin();
-    setState(() => _showCoinFly = false);
+    setState(() {
+      _showCoinFly = false;
+      _displayCoins = _controller.coins;
+    });
   }
 
   void _onReset() {
@@ -190,7 +219,11 @@ class _CatSlotPageState extends State<CatSlotPage> {
                             const SizedBox(height: 6),
                             KeyedSubtree(
                               key: _balanceKey,
-                              child: BalanceLabel(coins: _controller.coins),
+                              child: BalanceLabel(
+                                coins: _showCoinFly
+                                    ? _displayCoins
+                                    : _controller.coins,
+                              ),
                             ),
                           ],
                         ),
@@ -231,6 +264,8 @@ class _CatSlotPageState extends State<CatSlotPage> {
                           _WinLineOverlay(
                             visible: _controller.result == 'You win!',
                           ),
+                          // ── Phase 1: Reveal-Burst über der Mittelreihe ──────
+                          WinRevealBurst(visible: !_winCollected),
                         ],
                       ),
                       const SizedBox(height: 22),
@@ -256,20 +291,23 @@ class _CatSlotPageState extends State<CatSlotPage> {
             ),
           ),
         ),
-        // ── Win-Overlay ─────────────────────────────────────────────
-        _WinOverlay(
-          visible: _showWinOverlay,
-          onCollect: _onCollect,
-          coinsWon: _controller.pendingWin,
+        // ── Win-Overlay (Phase 2 – Luxus-Panel) ─────────────────────
+        Positioned.fill(
+          child: WinPanel(
+            visible: _showWinOverlay,
+            coinsWon: _controller.pendingWin,
+            onCollect: _onCollect,
+          ),
         ),
         // ── Coin-Fly-Animation ───────────────────────────────────────
         if (_showCoinFly)
           Positioned.fill(
             child: CoinFlyOverlay(
-              key: UniqueKey(),
+              key: _coinFlyKey,
               startCenter: _coinStart,
               targetCenter: _coinTarget,
               onDone: _onCoinsDone,
+              onCoinArrived: _onCoinArrived,
             ),
           ),
       ],
@@ -411,201 +449,3 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
   }
 }
 
-// ── Win-Overlay Widget ────────────────────────────────────────────────────────
-
-class _WinOverlay extends StatefulWidget {
-  final bool visible;
-  final VoidCallback onCollect;
-  final int coinsWon;
-
-  const _WinOverlay({
-    required this.visible,
-    required this.onCollect,
-    required this.coinsWon,
-  });
-
-  @override
-  State<_WinOverlay> createState() => _WinOverlayState();
-}
-
-class _WinOverlayState extends State<_WinOverlay>
-    with TickerProviderStateMixin {
-  // ── Eintritts-Animation (einmalig) ───────────────────────────
-  late final AnimationController _entryCtrl;
-  late final Animation<double> _fade;
-  late final Animation<double> _entryScale;
-
-  // ── Puls-Animation (dauerhaft, solange sichtbar) ─────────────
-  late final AnimationController _pulseCtrl;
-  late final Animation<double> _pulseOpacity;
-  late final Animation<double> _pulseScale;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Eintritt
-    _entryCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    );
-    _fade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
-    _entryScale = Tween<double>(
-      begin: 0.55,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut));
-
-    // Puls
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _pulseOpacity = Tween<double>(
-      begin: 0.82,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-    _pulseScale = Tween<double>(
-      begin: 1.0,
-      end: 1.10,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-
-    if (widget.visible) _playEntry();
-  }
-
-  void _playEntry() {
-    _entryCtrl.forward(from: 0).then((_) {
-      if (mounted && widget.visible) _pulseCtrl.repeat(reverse: true);
-    });
-  }
-
-  @override
-  void didUpdateWidget(_WinOverlay old) {
-    super.didUpdateWidget(old);
-    if (widget.visible && !old.visible) {
-      _pulseCtrl.stop();
-      _pulseCtrl.reset();
-      _playEntry();
-    } else if (!widget.visible && old.visible) {
-      _pulseCtrl.stop();
-      _pulseCtrl.reset();
-      _entryCtrl.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _entryCtrl.dispose();
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: !widget.visible,
-      child: FadeTransition(
-        opacity: _fade,
-        child: Container(
-          color: CatSlotStyles.winOverlayBg,
-          child: Center(
-            child: ScaleTransition(
-              scale: _entryScale,
-              child: AnimatedBuilder(
-                animation: _pulseCtrl,
-                builder: (_, child) => Opacity(
-                  opacity: _pulseOpacity.value,
-                  child: Transform.scale(
-                    scale: _pulseScale.value,
-                    child: child,
-                  ),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 28,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A0A3B),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: CatSlotStyles.winLineColor,
-                      width: 2.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: CatSlotStyles.winLineColor.withValues(
-                          alpha: 0.65,
-                        ),
-                        blurRadius: 56,
-                        spreadRadius: 10,
-                      ),
-                      BoxShadow(
-                        color: CatSlotStyles.winLineColor.withValues(
-                          alpha: 0.25,
-                        ),
-                        blurRadius: 130,
-                        spreadRadius: 28,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🐱', style: TextStyle(fontSize: 58)),
-                      const SizedBox(height: 10),
-                      Text(
-                        'YOU WIN!',
-                        style: TextStyle(
-                          fontSize: CatSlotStyles.winOverlayFontSize,
-                          fontWeight: FontWeight.w900,
-                          color: CatSlotStyles.winOverlayText,
-                          letterSpacing: 4,
-                          shadows: [
-                            Shadow(
-                              color: CatSlotStyles.winLineColor.withValues(
-                                alpha: 1.0,
-                              ),
-                              blurRadius: 28,
-                            ),
-                            Shadow(
-                              color: CatSlotStyles.winLineColor.withValues(
-                                alpha: 0.6,
-                              ),
-                              blurRadius: 64,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 26),
-                      ElevatedButton(
-                        onPressed: widget.onCollect,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: CatSlotStyles.winLineColor,
-                          foregroundColor: const Color(0xFF1A0A3B),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 36,
-                            vertical: 14,
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text('COLLECT ${widget.coinsWon} PURRCOINS'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
