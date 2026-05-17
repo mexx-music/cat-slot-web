@@ -291,22 +291,31 @@ class _CatSlotPageState extends State<CatSlotPage> {
           ),
         ),
         // ── Win-Overlay (Phase 2 – Luxus-Panel) ─────────────────────
+        // Material(transparency) verhindert die gelben Debug-Unter-
+        // streichungen unter Text-Widgets, die außerhalb eines Scaffolds
+        // liegen. Rein visueller Wrapper, ändert weder Layout noch Logik.
         Positioned.fill(
-          child: WinPanel(
-            visible: _showWinOverlay,
-            coinsWon: _controller.pendingWin,
-            onCollect: _onCollect,
+          child: Material(
+            type: MaterialType.transparency,
+            child: WinPanel(
+              visible: _showWinOverlay,
+              coinsWon: _controller.pendingWin,
+              onCollect: _onCollect,
+            ),
           ),
         ),
         // ── Coin-Fly-Animation ───────────────────────────────────────
         if (_showCoinFly)
           Positioned.fill(
-            child: CoinFlyOverlay(
-              key: _coinFlyKey,
-              startCenter: _coinStart,
-              targetCenter: _coinTarget,
-              onDone: _onCoinsDone,
-              onCoinArrived: _onCoinArrived,
+            child: Material(
+              type: MaterialType.transparency,
+              child: CoinFlyOverlay(
+                key: _coinFlyKey,
+                startCenter: _coinStart,
+                targetCenter: _coinTarget,
+                onDone: _onCoinsDone,
+                onCoinArrived: _onCoinArrived,
+              ),
             ),
           ),
       ],
