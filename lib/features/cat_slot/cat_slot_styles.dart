@@ -101,17 +101,19 @@ class CatSlotStyles {
   static const Color winGoldLight = Color(0xFFFFF1A8);
 
   // Coin-Fly-Animation
-  static const double coinSize = 36.0; // Flug-Münzen
+  static const double coinSize = 44.0; // Flug-Münzen (größer = wertiger)
   static const double heroCoinSize = 130.0; // große Hero-Coin vor dem Flug
-  static const int coinCount = 7;
+  static const int coinCount = 5; // weniger, dafür hochwertiger
   static const Duration coinHeroDuration = Duration(
-    milliseconds: 600,
+    milliseconds: 460,
   ); // Hero einblenden
   static const Duration coinHoldDuration = Duration(
-    milliseconds: 520,
+    milliseconds: 420,
   ); // sichtbare Pause
   static const Duration coinFlyDuration = Duration(
-    milliseconds: 820,
+    milliseconds: 880,
   ); // Flugdauer pro Münze
-  static const int coinStaggerMs = 55; // Versatz zwischen Münzen
+  static const int coinStaggerMs = 95; // Versatz zwischen Münzen (etwas mehr Luft)
+  /// Größe des Impact-Bursts am Credits-Ziel bei Münz-Ankunft.
+  static const double coinImpactBurstSize = 78.0;
 }

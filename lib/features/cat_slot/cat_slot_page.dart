@@ -91,17 +91,16 @@ class _CatSlotPageState extends State<CatSlotPage> {
   /// 3. Coin-Fly-Animation starten
   void _onCollect() {
     // Positionen jetzt ermitteln (Widgets sind noch im Tree)
-    final reelBox =
-        _reelStackKey.currentContext?.findRenderObject() as RenderBox?;
     final balanceBox =
         _balanceKey.currentContext?.findRenderObject() as RenderBox?;
 
-    if (reelBox != null && balanceBox != null) {
-      final reelSize = reelBox.size;
+    // Start = Bildschirmmitte – exakt dort, wo der Win-Betrag im Panel stand.
+    // So wirkt es, als würde der Betrag sich in Münzen auflösen.
+    final screen = MediaQuery.of(context).size;
+    _coinStart = Offset(screen.width / 2, screen.height / 2);
+
+    if (balanceBox != null) {
       final balanceSize = balanceBox.size;
-      _coinStart = reelBox.localToGlobal(
-        Offset(reelSize.width / 2, reelSize.height / 2),
-      );
       _coinTarget = balanceBox.localToGlobal(
         Offset(balanceSize.width / 2, balanceSize.height / 2),
       );

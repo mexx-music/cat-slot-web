@@ -9,7 +9,8 @@ import '../cat_slot_styles.dart';
 /// 3-Phasen Coin-Collect-Animation:
 ///   1. Hero-Coin erscheint groß und schön (coinHeroDuration)
 ///   2. Kurze Hold-Pause (coinHoldDuration)
-///   3. Kleine Coins fliegen zeitversetzt von startCenter → targetCenter
+///   3. Kleine Coins fliegen zeitversetzt von startCenter → targetCenter,
+///      mit echter 3D-Y-Rotation und Impact-Burst am Ziel.
 class CoinFlyOverlay extends StatefulWidget {
   final Offset startCenter;
   final Offset targetCenter;
@@ -57,9 +58,14 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
   final List<Offset> _scatter = [];
   final List<double> _arcHeight = []; // px, varies per coin
   final List<double> _arcBias = []; // lateral drift px
-  final List<double> _rotSpeed = []; // rotation cycles
+  final List<double> _spinTurns = []; // anzahl ganzer Y-Drehungen
+  final List<double> _spinPhase = []; // Start-Phasenversatz
   bool _doneFired = false;
   final _rng = Random();
+
+  // ── Impact-Burst am Ziel ─────────────────────────────────────
+  /// Bei jedem ankommenden Coin um 1 hochgezählt – triggert _ImpactBurst.
+  int _impactTrigger = 0;
 
   @override
   void initState() {
@@ -91,12 +97,14 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
 
     // Fly-Coins vorbereiten
     for (int i = 0; i < _count; i++) {
+      // Sehr enger Start-Cluster – Münzen scheinen aus EINEM Punkt zu emergieren.
       _scatter.add(
-        Offset((_rng.nextDouble() - 0.5) * 90, (_rng.nextDouble() - 0.5) * 70),
+        Offset((_rng.nextDouble() - 0.5) * 22, (_rng.nextDouble() - 0.5) * 18),
       );
-      _arcHeight.add(38.0 + _rng.nextDouble() * 68.0); // 38..106 px
-      _arcBias.add((_rng.nextDouble() - 0.5) * 54.0); // ±27 px lateral
-      _rotSpeed.add(2.0 + _rng.nextDouble() * 3.0); // 2..5 rotation cycles
+      _arcHeight.add(70.0 + _rng.nextDouble() * 80.0); // 70..150 px Bogenhöhe
+      _arcBias.add((_rng.nextDouble() - 0.5) * 60.0); // ±30 px lateral
+      _spinTurns.add(1.4 + _rng.nextDouble() * 1.4); // 1.4..2.8 Umdrehungen
+      _spinPhase.add(_rng.nextDouble() * 2 * pi);
 
       final c = AnimationController(
         vsync: this,
@@ -108,15 +116,15 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
         if (status != AnimationStatus.completed) return;
         if (!mounted) return; // widget may already be disposed
         widget.onCoinArrived?.call(idx);
+        setState(() => _impactTrigger++);
         if (idx == _count - 1 && !_doneFired) {
           _doneFired = true;
           widget.onDone();
         }
       });
       _flyCtrl.add(c);
-      // Alternate curve shapes for natural variety
-      final curve = i.isEven ? Curves.easeInCubic : Curves.easeIn;
-      _flyAnim.add(CurvedAnimation(parent: c, curve: curve));
+      // Sanftes, hochwertiges Easing für alle Coins (kein hektisches Bouncen)
+      _flyAnim.add(CurvedAnimation(parent: c, curve: Curves.easeInOutCubic));
     }
 
     _startHeroPhase();
@@ -155,8 +163,9 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
           if (mounted) _flyCtrl[i].forward();
         },
       );
-    } // Failsafe: falls der letzte Status-Listener nie feuert (z. B. durch
-    // schnelles Dispose), onDone spätestens nach voller Laufzeit aufrufen.
+    }
+    // Failsafe: falls der letzte Status-Listener nie feuert, onDone spätestens
+    // nach voller Laufzeit aufrufen.
     final safeguard =
         CatSlotStyles.coinFlyDuration +
         Duration(milliseconds: (_count - 1) * CatSlotStyles.coinStaggerMs) +
@@ -166,7 +175,7 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
         _doneFired = true;
         widget.onDone();
       }
-    }); // onDone is handled via per-coin status listeners set up in initState.
+    });
   }
 
   @override
@@ -211,7 +220,8 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
               final end = widget.targetCenter;
               final arcH = _arcHeight[i];
               final arcB = _arcBias[i];
-              final rotS = _rotSpeed[i];
+              final turns = _spinTurns[i];
+              final phase = _spinPhase[i];
               return AnimatedBuilder(
                 animation: _flyAnim[i],
                 builder: (_, __) {
@@ -220,16 +230,39 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
                     return const SizedBox.shrink();
                   }
                   final t = _flyAnim[i].value;
+                  // Sanfter Bogen via Sinus
                   final sinT = sin(t * pi);
                   final pos = Offset(
                     _lerp(start.dx, end.dx, t) + sinT * arcB,
                     _lerp(start.dy, end.dy, t) - sinT * arcH,
                   );
-                  final scale = (1.0 - t * 0.55).clamp(0.1, 1.0);
-                  final opacity = t < 0.75
+                  // "Burst-out" am Start: Münze ploppt aus dem Hero-Punkt heraus
+                  final emerge = t < 0.10 ? (t / 0.10) : 1.0;
+                  // Sanft schrumpfen Richtung Ziel
+                  final shrink = (1.0 - t * 0.55).clamp(0.45, 1.0);
+                  final scale = emerge * shrink;
+                  final opacity = t < 0.85
                       ? 1.0
-                      : ((1.0 - t) / 0.25).clamp(0.0, 1.0);
-                  final rotation = sin(t * pi * rotS) * 0.45;
+                      : ((1.0 - t) / 0.15).clamp(0.0, 1.0);
+
+                  // Echte 3D-Y-Rotation (flippende Casino-Münze)
+                  final spinAngle = (t * 2 * pi * turns) + phase;
+                  final showBack = cos(spinAngle) < 0;
+                  final perspective = Matrix4.identity()
+                    ..setEntry(3, 2, 0.0009)
+                    ..rotateY(spinAngle);
+
+                  Widget coin = const _FlyCoin();
+                  // Auf der Rückseite spiegelt rotateY die Inhalte – Pfote
+                  // soll trotzdem korrekt orientiert bleiben.
+                  if (showBack) {
+                    coin = Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.diagonal3Values(-1, 1, 1),
+                      child: coin,
+                    );
+                  }
+
                   return Positioned(
                     left: pos.dx - CatSlotStyles.coinSize / 2,
                     top: pos.dy - CatSlotStyles.coinSize / 2,
@@ -237,9 +270,10 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
                       opacity: opacity,
                       child: Transform.scale(
                         scale: scale,
-                        child: Transform.rotate(
-                          angle: rotation,
-                          child: const _FlyCoin(),
+                        child: Transform(
+                          alignment: Alignment.center,
+                          transform: perspective,
+                          child: coin,
                         ),
                       ),
                     ),
@@ -247,6 +281,18 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
                 },
               );
             }),
+
+          // ── Impact-Burst am Credits-Ziel ─────────────────────
+          if (_phase == _Phase.fly)
+            Positioned(
+              left: widget.targetCenter.dx -
+                  CatSlotStyles.coinImpactBurstSize / 2,
+              top: widget.targetCenter.dy -
+                  CatSlotStyles.coinImpactBurstSize / 2,
+              width: CatSlotStyles.coinImpactBurstSize,
+              height: CatSlotStyles.coinImpactBurstSize,
+              child: _ImpactBurst(triggerId: _impactTrigger),
+            ),
         ],
       ),
     );
@@ -256,7 +302,7 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Große Hero-Coin (CustomPainter)
+// Große Hero-Coin (CustomPainter) – unverändert, bewusst bewahrt
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroCoin extends StatelessWidget {
@@ -366,7 +412,7 @@ class _HeroCoinPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Kleine Flug-Münze
+// Kleine Flug-Münze – veredelte PurrCoin
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FlyCoin extends StatelessWidget {
@@ -384,56 +430,214 @@ class _FlyCoin extends StatelessWidget {
 }
 
 class _FlyCoinPainter extends CustomPainter {
+  // Pfoten-Stempel via TextPainter (einmal pro Frame, akzeptabel für 5 Coins)
+  static final TextPainter _pawPainter = TextPainter(
+    textDirection: TextDirection.ltr,
+  );
+
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final r = size.width / 2;
 
-    // Glow
+    // ── Äußerer warmer Glow ──────────────────────────────────
     canvas.drawCircle(
       Offset(cx, cy),
       r,
       Paint()
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
-        ..color = const Color(0xFFFFD700).withValues(alpha: 0.5),
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
+        ..color = const Color(0xFFFFD700).withValues(alpha: 0.55),
     );
 
-    // Haupt-Kreis
+    // ── Dunkler äußerer Rand (Tiefen-Kontur) ─────────────────
     canvas.drawCircle(
       Offset(cx, cy),
-      r * 0.9,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.3, -0.4),
-          radius: 0.9,
-          colors: const [
-            Color(0xFFFFF176),
-            Color(0xFFFFD700),
-            Color(0xFFB8860B),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)),
+      r * 0.96,
+      Paint()..color = const Color(0xFF6B4A00),
     );
 
-    // Rand
+    // ── Haupt-Disc: radialer Gold-Verlauf ────────────────────
+    final bodyPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.45),
+        radius: 0.95,
+        colors: const [
+          Color(0xFFFFF1A8), // hell oben-links
+          Color(0xFFFFD700), // Gold Mitte
+          Color(0xFFB8860B), // dunkles Gold unten
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+    canvas.drawCircle(Offset(cx, cy), r * 0.88, bodyPaint);
+
+    // ── Heller innerer Rand (Doppel-Ring-Look) ───────────────
     canvas.drawCircle(
       Offset(cx, cy),
-      r * 0.88,
+      r * 0.74,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = r * 0.1
-        ..color = const Color(0xFF8B6914),
+        ..strokeWidth = r * 0.04
+        ..color = const Color(0xFFFFE680).withValues(alpha: 0.85),
     );
 
-    // Highlight
-    canvas.drawCircle(
-      Offset(cx * 0.7, cy * 0.7),
-      r * 0.28,
-      Paint()..color = Colors.white.withValues(alpha: 0.4),
+    // ── Pfoten-Stempel in der Mitte ──────────────────────────
+    // Natives Emoji – plattformkonsistente Darstellung, mit dezentem
+    // dunklem Schatten direkt darunter für leichten Tiefen-Look.
+    _pawPainter
+      ..text = TextSpan(
+        text: '🐾',
+        style: TextStyle(
+          fontSize: size.width * 0.42,
+          height: 1.0,
+          shadows: [
+            Shadow(
+              color: const Color(0xFF3A2400).withValues(alpha: 0.55),
+              blurRadius: 1.6,
+              offset: Offset(0, size.width * 0.025),
+            ),
+          ],
+        ),
+      )
+      ..layout();
+    _pawPainter.paint(
+      canvas,
+      Offset(cx - _pawPainter.width / 2, cy - _pawPainter.height / 2),
     );
+
+    // ── Specular-Highlight oben-links (Glanz) ────────────────
+    final highlightPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.55, -0.65),
+        radius: 0.55,
+        colors: [
+          Colors.white.withValues(alpha: 0.55),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+    canvas.drawCircle(Offset(cx, cy), r * 0.88, highlightPaint);
+
+    // ── Unterer Schatten für Tiefenwirkung ───────────────────
+    final shadowPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(0.4, 0.65),
+        radius: 0.6,
+        colors: [
+          const Color(0xFF5A3A00).withValues(alpha: 0.35),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+    canvas.drawCircle(Offset(cx, cy), r * 0.88, shadowPaint);
   }
 
   @override
   bool shouldRepaint(_FlyCoinPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Impact-Burst – wird bei jedem ankommenden Coin am Ziel ausgelöst.
+// Restartet bei jedem triggerId-Wechsel; bestehende Animation wird abgebrochen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ImpactBurst extends StatefulWidget {
+  final int triggerId;
+  const _ImpactBurst({required this.triggerId});
+
+  @override
+  State<_ImpactBurst> createState() => _ImpactBurstState();
+}
+
+class _ImpactBurstState extends State<_ImpactBurst>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _t;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 340),
+    );
+    _t = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+  }
+
+  @override
+  void didUpdateWidget(_ImpactBurst old) {
+    super.didUpdateWidget(old);
+    if (widget.triggerId != old.triggerId && widget.triggerId > 0) {
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (_, __) {
+        final t = _t.value;
+        if (t == 0.0) return const SizedBox.shrink();
+        // Ring wächst und verblasst, kompakter Glow-Kern darunter
+        return CustomPaint(
+          painter: _ImpactBurstPainter(progress: t),
+        );
+      },
+    );
+  }
+}
+
+class _ImpactBurstPainter extends CustomPainter {
+  final double progress; // 0..1
+  _ImpactBurstPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final maxR = size.shortestSide / 2;
+    final t = progress;
+    final opacity = (1.0 - t).clamp(0.0, 1.0);
+
+    // ── Soft-Glow-Kern (kurzer, satter Impact) ───────────────
+    final coreR = maxR * (0.18 + t * 0.45);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      coreR,
+      Paint()
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14)
+        ..color = const Color(0xFFFFD700).withValues(alpha: 0.55 * opacity),
+    );
+
+    // ── Expandierender Gold-Ring ──────────────────────────────
+    final ringR = maxR * (0.25 + t * 0.85);
+    final ringWidth = (3.0 * (1.0 - t * 0.7)).clamp(0.6, 3.0);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      ringR,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = ringWidth
+        ..color = const Color(0xFFFFF1A8).withValues(alpha: 0.9 * opacity),
+    );
+
+    // ── Zweiter, weiterer Ring für Tiefe ──────────────────────
+    final ring2R = maxR * (0.15 + t * 0.6);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      ring2R,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFFFFD700).withValues(alpha: 0.55 * opacity),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ImpactBurstPainter old) => old.progress != progress;
 }
