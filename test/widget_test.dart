@@ -6,6 +6,7 @@ import 'package:catslot/features/cat_slot/cat_slot_controller.dart';
 import 'package:catslot/features/cat_slot/cat_slot_page.dart';
 import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
 import 'package:catslot/features/cat_slot/services/golden_cat_system.dart';
+import 'package:catslot/features/cat_slot/services/fishing_cat_system.dart';
 
 class _FixedRandom implements Random {
   final int value;
@@ -284,6 +285,40 @@ void main() {
     expect(controller.coins, 59);
     expect(wallet.snapshot?.coins, 59);
     await tester.tap(find.byKey(const ValueKey('return-from-golden-cat')));
+    await tester.pump();
+    expect(find.text('CAT SLOT'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('three fishing cats open the playable fishing bonus', (
+    tester,
+  ) async {
+    final controller = CatSlotController(
+      random: const _FixedRandom(0),
+      bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
+      goldenCatPolicy: GoldenCatSymbolPolicy.fixed(0),
+      fishingCatPolicy: FishingCatSymbolPolicy.fixed(3),
+      spinLeadIn: Duration.zero,
+      reelStopGap: Duration.zero,
+    );
+    await pumpGame(
+      tester,
+      logicalSize: const Size(390, 844),
+      controller: controller,
+      reduceMotion: true,
+    );
+
+    await tester.tap(find.text('SPIN'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+
+    expect(find.byKey(const ValueKey('fishing-cat-game')), findsOneWidget);
+    expect(find.text('ANGEL AUSWERFEN'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('skip-fishing-cat')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('fishing-result-coins')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('return-from-fishing')));
     await tester.pump();
     expect(find.text('CAT SLOT'), findsOneWidget);
     expect(tester.takeException(), isNull);

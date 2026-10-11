@@ -48,3 +48,19 @@ class GoldenCatResult {
     required this.missed,
   });
 }
+
+class FishingCatResult {
+  final int attemptsCompleted;
+  final Map<String, int> catches;
+  final int pointsWon;
+  final int coinsWon;
+  final bool skipped;
+
+  const FishingCatResult({
+    required this.attemptsCompleted,
+    required this.catches,
+    required this.pointsWon,
+    required this.coinsWon,
+    required this.skipped,
+  });
+}

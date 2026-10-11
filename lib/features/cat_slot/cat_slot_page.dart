@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'bonus/golden_cat_challenge.dart';
+import 'bonus/fishing_cat_game.dart';
 import 'bonus/mouse_hunt_game.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
@@ -13,6 +14,7 @@ import 'models/bonus_game.dart';
 import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
 import 'services/golden_cat_system.dart';
+import 'services/fishing_cat_system.dart';
 import 'widgets/balance_label.dart';
 import 'widgets/cat_mood_chip.dart';
 import 'widgets/coin_fly_overlay.dart';
@@ -91,6 +93,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         widget.controller ??
         CatSlotController(
           goldenCatPolicy: GoldenCatSymbolPolicy(),
+          fishingCatPolicy: FishingCatSymbolPolicy(),
           progressStore: SharedPreferencesBonusProgressStore(),
           walletStore: SharedPreferencesWalletStore(),
         );
@@ -172,7 +175,10 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         _refresh,
         onReelStop: (i) {
           _audio.playReelStopSound(i);
-          if (i == 2 && _controller.isBonusSpin) {
+          if (i == 2 &&
+              (_controller.isBonusSpin ||
+                  _controller.goldenCatVisibleCount >= 3 ||
+                  _controller.fishingCatVisibleCount >= 3)) {
             HapticFeedback.heavyImpact();
             if (mounted) setState(() => _bonusRevealed = true);
           } else {
@@ -235,9 +241,12 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     setState(() {
       _bonusTransitioning = true;
       _catExcited = true;
-      _catMessage = session.game.id == kMouseHuntGameId
-          ? 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.'
-          : 'Drei Goldkatzen! Die Golden Cat Challenge beginnt.';
+      _catMessage = switch (session.game.id) {
+        kMouseHuntGameId => 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.',
+        kGoldenCatGameId =>
+          'Drei Goldkatzen! Die Golden Cat Challenge beginnt.',
+        _ => 'Drei Angelkatzen! Am stillen Teich bewegt sich etwas.',
+      };
     });
     if (_lifecycleState != AppLifecycleState.resumed) {
       _bonusLaunchPending = true;
@@ -295,6 +304,22 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _catMessage = result.coinsWon > 0
           ? 'Golden Cat bringt ${result.coinsWon} PurrCoins ins Körbchen.'
           : 'Die Goldkatze war schneller – dein Guthaben bleibt sicher.';
+    });
+  }
+
+  Future<void> _onFishingCatCompleted(FishingCatResult result) async {
+    final session = _activeBonusSession;
+    if (session == null) return;
+    final credited = await _controller.creditFishingCatOnce(session, result);
+    if (!credited || !mounted) return;
+    if (result.coinsWon > 0) {
+      _audio.playCollectSound();
+      HapticFeedback.mediumImpact();
+    }
+    setState(() {
+      _displayCoins = _controller.coins;
+      _catMessage =
+          'Fishing Cat tauscht ${result.pointsWon} Punkte in ${result.coinsWon} PurrCoins.';
     });
   }
 
@@ -517,23 +542,22 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 8),
-          Container(
-            key: const ValueKey('cat-switch-progress'),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: const Color(0x552E4456),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0x668CE4DC)),
-            ),
-            child: Text(
-              'GOLDKATZE  ${_controller.goldenCatProgress}/3',
-              style: const TextStyle(
-                color: Color(0xFFBFEDE8),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 7,
+            runSpacing: 6,
+            children: [
+              _bonusProgressChip(
+                key: const ValueKey('cat-switch-progress'),
+                label: 'GOLDKATZE',
+                value: _controller.goldenCatProgress,
               ),
-            ),
+              _bonusProgressChip(
+                key: const ValueKey('fishing-cat-progress'),
+                label: 'ANGELKATZE',
+                value: _controller.fishingCatProgress,
+              ),
+            ],
           ),
           const SizedBox(height: 13),
           SymbolSetSelector(activeSet: _activeSet, onChanged: _onSetChanged),
@@ -775,9 +799,41 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               },
             ),
           ),
+        if (_showBonusGame && _activeBonusSession?.game.id == kFishingCatGameId)
+          Positioned.fill(
+            child: FishingCatGame(
+              session: _activeBonusSession!,
+              onRoundCompleted: _onFishingCatCompleted,
+              onExit: _exitBonusGame,
+              reduceMotion: _reduceMotion,
+            ),
+          ),
       ],
     );
   }
+
+  Widget _bonusProgressChip({
+    required Key key,
+    required String label,
+    required int value,
+  }) => Container(
+    key: key,
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0x552E4456),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0x668CE4DC)),
+    ),
+    child: Text(
+      '$label  $value/3',
+      style: const TextStyle(
+        color: Color(0xFFBFEDE8),
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1,
+      ),
+    ),
+  );
 }
 
 // ── Pulsierende Gewinnlinie ───────────────────────────────────────────────────

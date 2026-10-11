@@ -4,6 +4,7 @@ import '../cat_slot_styles.dart';
 import 'mouse_art.dart';
 import '../data/bonus_games.dart';
 import 'golden_cat_art.dart';
+import 'fishing_cat_art.dart';
 
 /// Zeigt ein einzelnes Slot-Symbol an.
 ///
@@ -32,6 +33,13 @@ class SymbolDisplay extends StatelessWidget {
           width: s,
           height: s,
           child: Center(child: GoldenCatSymbol(size: 68)),
+        );
+      }
+      if (symbol.id == kFishingCatBonusSymbolId) {
+        return const SizedBox(
+          width: s,
+          height: s,
+          child: Center(child: FishingCatSymbol(size: 68)),
         );
       }
       return const SizedBox(

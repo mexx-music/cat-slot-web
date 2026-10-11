@@ -6,6 +6,7 @@ import 'data/slot_symbols.dart';
 import 'models/bonus_game.dart';
 import 'services/bonus_trigger_policy.dart';
 import 'services/golden_cat_system.dart';
+import 'services/fishing_cat_system.dart';
 import 'services/payout_service.dart';
 
 class CatSlotController {
@@ -16,6 +17,7 @@ class CatSlotController {
   final PayoutService _payout;
   final BonusTriggerPolicy _bonusTriggerPolicy;
   final GoldenCatSymbolPolicy _goldenCatPolicy;
+  final FishingCatSymbolPolicy _fishingCatPolicy;
   final BonusProgressStore _progressStore;
   final WalletStore _walletStore;
   final Duration spinLeadIn;
@@ -26,6 +28,7 @@ class CatSlotController {
     PayoutService payout = const PayoutService(),
     BonusTriggerPolicy? bonusTriggerPolicy,
     GoldenCatSymbolPolicy? goldenCatPolicy,
+    FishingCatSymbolPolicy? fishingCatPolicy,
     BonusProgressStore? progressStore,
     WalletStore? walletStore,
     this.spinLeadIn = const Duration(milliseconds: 760),
@@ -34,6 +37,7 @@ class CatSlotController {
        _payout = payout,
        _bonusTriggerPolicy = bonusTriggerPolicy ?? BonusTriggerPolicy(),
        _goldenCatPolicy = goldenCatPolicy ?? GoldenCatSymbolPolicy.fixed(0),
+       _fishingCatPolicy = fishingCatPolicy ?? FishingCatSymbolPolicy.fixed(0),
        _progressStore = progressStore ?? MemoryBonusProgressStore(),
        _walletStore = walletStore ?? MemoryWalletStore();
 
@@ -56,6 +60,7 @@ class CatSlotController {
   Future<void>? _initializing;
   bool _initialized = false;
   int goldenCatProgress = 0;
+  int fishingCatProgress = 0;
 
   int _bonusSessionSerial = 0;
   final Set<String> _creditedBonusTransactions = {};
@@ -66,16 +71,20 @@ class CatSlotController {
   bool get isBonusSpin => _pendingBonusGames.isNotEmpty;
   int get goldenCatVisibleCount =>
       VisibleBonusCounter.count(reels, kGoldenCatBonusSymbolId);
+  int get fishingCatVisibleCount =>
+      VisibleBonusCounter.count(reels, kFishingCatBonusSymbolId);
 
   Future<void> initialize() => _initializing ??= _loadPersistentState();
 
   Future<void> _loadPersistentState() async {
     final values = await Future.wait([
       _progressStore.loadGoldenCatProgress(),
+      _progressStore.loadFishingCatProgress(),
       _walletStore.load(),
     ]);
     goldenCatProgress = values[0] as int;
-    final wallet = values[1] as WalletSnapshot?;
+    fishingCatProgress = values[1] as int;
+    final wallet = values[2] as WalletSnapshot?;
     if (wallet != null) {
       coins = max(0, wallet.coins);
       _creditedBonusTransactions.addAll(wallet.creditedTransactions);
@@ -152,9 +161,17 @@ class CatSlotController {
       (index) => randomStrip(finalCenters[index]),
     );
     final requestedGoldenCatSymbols = _goldenCatPolicy.visibleCount();
-    _injectGoldenCatSymbols(
+    _injectBonusSymbols(
       finalReels,
       requestedGoldenCatSymbols,
+      symbolId: kGoldenCatBonusSymbolId,
+      protectCenterLine: mouseHuntTriggered,
+    );
+    final requestedFishingCatSymbols = _fishingCatPolicy.visibleCount();
+    _injectBonusSymbols(
+      finalReels,
+      requestedFishingCatSymbols,
+      symbolId: kFishingCatBonusSymbolId,
       protectCenterLine: mouseHuntTriggered,
     );
     await Future.delayed(spinLeadIn);
@@ -169,8 +186,12 @@ class CatSlotController {
 
     isSpinning = false;
     final visibleGoldenCats = goldenCatVisibleCount;
+    final visibleFishingCats = fishingCatVisibleCount;
     await _applyGoldenCatProgress(visibleGoldenCats);
-    if (!mouseHuntTriggered && visibleGoldenCats < 3) {
+    await _applyFishingCatProgress(visibleFishingCats);
+    if (!mouseHuntTriggered &&
+        visibleGoldenCats < 3 &&
+        visibleFishingCats < 3) {
       final spinResult = _payout.evaluate(slots);
       if (spinResult.isWin) {
         latestWin = spinResult.coinsWon;
@@ -187,19 +208,34 @@ class CatSlotController {
     onUpdate();
   }
 
-  void _injectGoldenCatSymbols(
+  void _injectBonusSymbols(
     List<List<String>> targetReels,
     int count, {
+    required String symbolId,
     required bool protectCenterLine,
   }) {
     final positions = <(int, int)>[
       for (var reel = 0; reel < 3; reel++)
         for (var row = 0; row < 3; row++)
-          if (!protectCenterLine || row != 1) (reel, row),
+          if ((!protectCenterLine || row != 1) &&
+              bonusGameForSymbolId(targetReels[reel][row]) == null)
+            (reel, row),
     ]..shuffle(_random);
     for (final position in positions.take(min(count, positions.length))) {
-      targetReels[position.$1][position.$2] = kGoldenCatBonusSymbolId;
+      targetReels[position.$1][position.$2] = symbolId;
     }
+  }
+
+  Future<void> _applyFishingCatProgress(int visibleCount) async {
+    if (visibleCount >= 3) {
+      _enqueueBonus(kFishingCatDefinition);
+      return;
+    }
+    if (visibleCount <= 0) return;
+    final total = fishingCatProgress + visibleCount;
+    if (total >= 3) _enqueueBonus(kFishingCatDefinition);
+    fishingCatProgress = total % 3;
+    await _progressStore.saveFishingCatProgress(fishingCatProgress);
   }
 
   Future<void> _applyGoldenCatProgress(int visibleCount) async {
@@ -285,6 +321,45 @@ class CatSlotController {
     result = goldenResult.missed
         ? 'Golden Cat: Bonus nicht gesichert'
         : 'Golden Cat: +$expectedCoins PurrCoins';
+    await _persistWallet();
+    return true;
+  }
+
+  Future<bool> creditFishingCatOnce(
+    BonusGameSession session,
+    FishingCatResult fishingResult,
+  ) async {
+    final validNames = FishingCatchKind.values.map((kind) => kind.name).toSet();
+    if (fishingResult.catches.keys.any((name) => !validNames.contains(name)) ||
+        fishingResult.catches.values.any((count) => count < 0)) {
+      throw ArgumentError('Fishing Cat contains invalid catch data');
+    }
+    final caughtCount = fishingResult.catches.values.fold<int>(
+      0,
+      (sum, count) => sum + count,
+    );
+    final expectedPoints = fishingResult.catches.entries.fold<int>(0, (
+      sum,
+      entry,
+    ) {
+      final kind = FishingCatchKind.values.byName(entry.key);
+      return sum + FishingCatEconomy.pointsFor(kind) * entry.value;
+    });
+    if (session.game.id != kFishingCatGameId ||
+        fishingResult.attemptsCompleted < 0 ||
+        fishingResult.attemptsCompleted > FishingCatEconomy.attempts ||
+        (!fishingResult.skipped &&
+            fishingResult.attemptsCompleted != FishingCatEconomy.attempts) ||
+        caughtCount > fishingResult.attemptsCompleted ||
+        fishingResult.pointsWon != expectedPoints ||
+        fishingResult.coinsWon !=
+            FishingCatEconomy.coinsForPoints(expectedPoints)) {
+      throw ArgumentError('Fishing Cat reward does not match configuration');
+    }
+    if (!_creditedBonusTransactions.add(session.transactionId)) return false;
+    coins += fishingResult.coinsWon;
+    latestWin = fishingResult.coinsWon;
+    result = 'Fishing Cat: +${fishingResult.coinsWon} PurrCoins';
     await _persistWallet();
     return true;
   }

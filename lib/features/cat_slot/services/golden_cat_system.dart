@@ -89,12 +89,15 @@ class VisibleBonusCounter {
 abstract interface class BonusProgressStore {
   Future<int> loadGoldenCatProgress();
   Future<void> saveGoldenCatProgress(int value);
+  Future<int> loadFishingCatProgress();
+  Future<void> saveFishingCatProgress(int value);
 }
 
 class MemoryBonusProgressStore implements BonusProgressStore {
   int value;
+  int fishingValue;
 
-  MemoryBonusProgressStore([this.value = 0]);
+  MemoryBonusProgressStore([this.value = 0, this.fishingValue = 0]);
 
   @override
   Future<int> loadGoldenCatProgress() async => value;
@@ -103,13 +106,23 @@ class MemoryBonusProgressStore implements BonusProgressStore {
   Future<void> saveGoldenCatProgress(int value) async {
     this.value = value;
   }
+
+  @override
+  Future<int> loadFishingCatProgress() async => fishingValue;
+
+  @override
+  Future<void> saveFishingCatProgress(int value) async {
+    fishingValue = value;
+  }
 }
 
 class SharedPreferencesBonusProgressStore implements BonusProgressStore {
   static const _goldenCatKey = 'bonus.golden_cat.progress.v1';
   static const _legacyCatSwitchKey = 'bonus.cat_switch.progress.v1';
+  static const _fishingCatKey = 'bonus.fishing_cat.progress.v1';
   SharedPreferencesAsync? _preferences;
   int _fallbackValue = 0;
+  int _fishingFallbackValue = 0;
 
   SharedPreferencesBonusProgressStore({SharedPreferencesAsync? preferences})
     : _preferences = preferences;
@@ -135,6 +148,25 @@ class SharedPreferencesBonusProgressStore implements BonusProgressStore {
     _fallbackValue = value.clamp(0, 2);
     try {
       await _prefs.setInt(_goldenCatKey, _fallbackValue);
+    } on StateError {
+      // Widget tests run without a registered platform store.
+    }
+  }
+
+  @override
+  Future<int> loadFishingCatProgress() async {
+    try {
+      return (await _prefs.getInt(_fishingCatKey) ?? 0).clamp(0, 2);
+    } on StateError {
+      return _fishingFallbackValue;
+    }
+  }
+
+  @override
+  Future<void> saveFishingCatProgress(int value) async {
+    _fishingFallbackValue = value.clamp(0, 2);
+    try {
+      await _prefs.setInt(_fishingCatKey, _fishingFallbackValue);
     } on StateError {
       // Widget tests run without a registered platform store.
     }

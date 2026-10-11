@@ -73,6 +73,13 @@ List<SlotSymbol> _buildSymbols({String? setFolder}) {
       payout: 0,
       bonusGameId: kGoldenCatGameId,
     ),
+    const SlotSymbol(
+      id: kFishingCatBonusSymbolId,
+      emoji: 'FISH',
+      label: 'Fishing Cat Bonus',
+      payout: 0,
+      bonusGameId: kFishingCatGameId,
+    ),
   ];
 }
 

@@ -83,12 +83,48 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Wenn Mouse Hunt und Golden Cat im selben Spin auslösen, wird Mouse Hunt
   zuerst gespielt; Golden Cat bleibt in der Bonus-Warteschlange erhalten.
 
+### Fishing Cat
+
+- Das dritte stabile Bonussymbol `bonus_fishing_cat` erscheint unabhängig auf
+  allen neun Positionen. Drei sichtbare Symbole starten **Fishing Cat** direkt;
+  einzelne Symbole füllen den eigenen persistenten `ANGELKATZE 0/3`-Sammler.
+- Am ruhigen Teich schwimmen vier Ziele pro Versuch in unterschiedlichen
+  Tiefen, Größen und Geschwindigkeiten. Der Spieler hat genau fünf Würfe. Der
+  große Button startet nur die sichtbare Hakenbahn; ein Fang entsteht aus der
+  tatsächlichen Überschneidung von Haken und Ziel – nie aus einer nachträglichen
+  Zufallsentscheidung.
+- Kleine, bunte, große und goldene Fische, Schatzkiste, alter Stiefel und eine
+  seltene Gummiente besitzen eigene Flutter-Zeichnungen. Die Angelkatze reagiert
+  mit Idle-, Alert-, Cast-, Pull-, Success-, Surprise- und Celebrate-Zuständen.
+- Die zentrale Punktetabelle liegt in `FishingCatEconomy`: kleiner Fisch 20,
+  bunter Fisch 50, großer Fisch 100, Goldfisch 250, Stiefel 0, Schatz 150 und
+  Gummiente 10 Punkte. Erst das Rundenergebnis rechnet 10 Punkte in einen
+  PurrCoin um; Punkte und Wallet-Coins bleiben technisch getrennt.
+- Ein Abbruch behält alle bereits erspielten Punkte. Bei einer App-Unterbrechung
+  wird ein laufender Wurf sicher verworfen, ohne einen der fünf Versuche zu
+  verbrauchen. Bewegungsreduktion entfernt dekorative Bewegung und Wartezeit,
+  während die für das Geschicklichkeitsspiel nötige Fischbewegung erhalten
+  bleibt.
+- Begegnungen werden vor Rundenbeginn aus einem festen Seed erzeugt. Gleicher
+  Seed und gleiche Eingabezeit liefern dasselbe Ergebnis. Mehrfachtaps während
+  eines Wurfs sind gesperrt, und das persistente Wallet akzeptiert jede
+  Bonus-Transaktion höchstens einmal.
+- Die reproduzierbare 200.000-Spin-Simulation ergibt etwa 1,73 % Fishing-Cat-
+  Runden, also ungefähr eine Runde je 58 Spins. Bei fünf zufällig vollständig
+  gefangenen Zielen liegt der Modellmittelwert bei rund 36 PurrCoins pro Runde
+  beziehungsweise 0,62 Coin pro Spin. Der theoretische Höchstfang von fünf
+  Goldfischen ergibt 125 Coins beziehungsweise rund 2,17 Coins pro Spin.
+- Treffen mehrere Bonusarten zusammen, bleibt die feste Reihenfolge erhalten:
+  Mouse Hunt, Golden Cat Challenge, Fishing Cat. Keine Runde überschreibt eine
+  andere, und normale Katzen-Auszahlungen bleiben unverändert.
+
 ## Wallet-Hinweis
 
 Guthaben und die letzten 256 gutgeschriebenen Bonus-Transaktions-IDs werden in
 einem gemeinsamen lokalen Wallet-Snapshot gespeichert. Eine Golden-Cat-
-Auszahlung wird vor Freigabe des Ergebnisbuttons persistiert und kann nach
-einem App-Neustart nicht erneut gutgeschrieben werden. Diese lokale Persistenz
+oder Fishing-Cat-Auszahlung wird vor Freigabe des Ergebnisbuttons persistiert
+und kann nach einem App-Neustart nicht erneut gutgeschrieben werden. Diese
+lokale Persistenz
 schützt vor UI-Doppelaufrufen und normalen Neustarts, ist aber nicht gegen
 manipulierte Geräte oder Neuinstallation abgesichert. Dafür wäre weiterhin
 eine serverseitige Transaktionsquelle erforderlich.
@@ -103,7 +139,7 @@ flutter build ios --simulator --debug --no-codesign
 ```
 
 Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout, den vollständigen
-Spin-Ablauf, Mouse Hunt und Golden Cat einschließlich Frame-Grenzen,
+Spin-Ablauf, Mouse Hunt, Golden Cat und Fishing Cat einschließlich Frame-Grenzen,
 Treffer/Fehlschlag, allen Auszahlungsstufen, Risiko, automatischer
 Maximalauszahlung, Sammler- und Wallet-Persistenz, Bonus-Warteschlange,
 schnellen Mehrfachtaps, kleinen sowie großen Displays und App-Unterbrechung.
