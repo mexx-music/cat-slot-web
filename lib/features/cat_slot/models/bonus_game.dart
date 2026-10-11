@@ -64,3 +64,19 @@ class FishingCatResult {
     required this.skipped,
   });
 }
+
+class TreeClimberResult {
+  final int sectionsReached;
+  final int pointsWon;
+  final int coinsWon;
+  final bool reachedSummit;
+  final bool cashedOut;
+
+  const TreeClimberResult({
+    required this.sectionsReached,
+    required this.pointsWon,
+    required this.coinsWon,
+    required this.reachedSummit,
+    required this.cashedOut,
+  });
+}

@@ -80,6 +80,13 @@ List<SlotSymbol> _buildSymbols({String? setFolder}) {
       payout: 0,
       bonusGameId: kFishingCatGameId,
     ),
+    const SlotSymbol(
+      id: kTreeClimberBonusSymbolId,
+      emoji: '🌳',
+      label: 'Tree Climber Bonus',
+      payout: 0,
+      bonusGameId: kTreeClimberGameId,
+    ),
   ];
 }
 

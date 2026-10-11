@@ -119,15 +119,52 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   beziehungsweise 0,62 Coin pro Spin. Der theoretische Höchstfang von fünf
   Goldfischen ergibt 125 Coins beziehungsweise rund 2,17 Coins pro Spin.
 - Treffen mehrere Bonusarten zusammen, bleibt die feste Reihenfolge erhalten:
-  Mouse Hunt, Golden Cat Challenge, Fishing Cat. Keine Runde überschreibt eine
-  andere, und normale Katzen-Auszahlungen bleiben unverändert.
+  Mouse Hunt, Golden Cat Challenge, Fishing Cat, Tree Climber. Keine Runde
+  überschreibt eine andere, und normale Katzen-Auszahlungen bleiben unverändert.
+
+### Tree Climber
+
+- Das stabile Symbol `bonus_tree_climber` kann auf allen neun sichtbaren
+  Rollenpositionen erscheinen. Drei frei verteilte Symbole starten das Spiel;
+  einzelne Symbole füllen den persistenten `BAUMKATZE 0/3`-Sammler.
+- Die Katze klettert über zehn Abschnitte. Abschnitt 1–2 führt mit großen,
+  ruhigen Treffern ein, 3–4 ergänzt leichtes Schwingen, 5–6 bewegt die Äste
+  deutlich, 7–8 verengt das Zeitfenster und 9–10 bildet die schnellere
+  Gipfelpassage. Strecke und Bewegung werden reproduzierbar aus einem Seed
+  erzeugt.
+- Ein Sprung wird ausschließlich aus der sichtbaren, normalisierten Position
+  von Katze und Ast beim Tastendruck bewertet. Es gibt keine versteckte
+  Trefferchance. Die Fenster sinken zentral konfiguriert von 0,40 auf 0,20 der
+  Szenenbreite.
+- Die Katze besitzt Idle-, Ready-, Jump-, Climb-, Land-, Slip- und
+  Celebrate-Zustände. Baum, Äste, Blätter, Sonnenstrahlen, Schmetterling,
+  Hauptkatze und Gipfelkatze werden als skalierbare Flutter-Zeichnungen ohne
+  neue große Bilddateien gerendert. Nach jeder Landung folgt die Kamera weich
+  zum nächsten Ast.
+- Beim ersten Fehlversuch rettet sich die Katze mit den Krallen und darf ohne
+  Punktverlust erneut springen. Ein weiterer Fehler beendet die Runde am
+  zuletzt erreichten sicheren Punktewert; vorhandene Wallet-Coins werden nie
+  abgezogen.
+- An den Abschnitten 2, 4, 6 und 8 kann der Spieler 20, 50, 100 oder 200 Punkte
+  sichern oder weiterklettern. Abschnitt 10 ergibt 400 Punkte. Zehn Punkte
+  werden in einen PurrCoin umgerechnet; die Baumspitze ergänzt 20 PurrCoins
+  Gipfelbonus, insgesamt also 60 PurrCoins.
+- Eine generationengebundene Abschlusslogik schützt Sprünge vor Mehrfachtaps,
+  pausierten Apps und ausbleibenden Browser-Ticker-Frames. Die sichtbare
+  Aktion wird kontrolliert abgeschlossen und jede Wallet-Transaktion höchstens
+  einmal gutgeschrieben.
+- Die reproduzierbare 200.000-Spin-Simulation ergibt ungefähr 1,23 %
+  Tree-Climber-Runden, also etwa eine Runde je 81 Spins. Zusammen erwarten die
+  vier Systeme rund 0,0957 Bonusrunden je Spin; Überschneidungen bleiben in der
+  Bonus-Warteschlange erhalten.
 
 ## Wallet-Hinweis
 
 Guthaben und die letzten 256 gutgeschriebenen Bonus-Transaktions-IDs werden in
-einem gemeinsamen lokalen Wallet-Snapshot gespeichert. Eine Golden-Cat-
-oder Fishing-Cat-Auszahlung wird vor Freigabe des Ergebnisbuttons persistiert
-und kann nach einem App-Neustart nicht erneut gutgeschrieben werden. Diese
+einem gemeinsamen lokalen Wallet-Snapshot gespeichert. Auszahlungen von
+Golden Cat, Fishing Cat oder Tree Climber werden vor Freigabe des
+Ergebnisbuttons persistiert
+können nach einem App-Neustart nicht erneut gutgeschrieben werden. Diese
 lokale Persistenz
 schützt vor UI-Doppelaufrufen und normalen Neustarts, ist aber nicht gegen
 manipulierte Geräte oder Neuinstallation abgesichert. Dafür wäre weiterhin
@@ -143,7 +180,8 @@ flutter build ios --simulator --debug --no-codesign
 ```
 
 Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout, den vollständigen
-Spin-Ablauf, Mouse Hunt, Golden Cat und Fishing Cat einschließlich Frame-Grenzen,
+Spin-Ablauf, Mouse Hunt, Golden Cat, Fishing Cat und Tree Climber einschließlich
+Frame-Grenzen,
 Treffer/Fehlschlag, allen Auszahlungsstufen, Risiko, automatischer
 Maximalauszahlung, Sammler- und Wallet-Persistenz, Bonus-Warteschlange,
 schnellen Mehrfachtaps, kleinen sowie großen Displays und App-Unterbrechung.

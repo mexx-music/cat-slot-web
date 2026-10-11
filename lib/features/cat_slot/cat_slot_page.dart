@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'bonus/golden_cat_challenge.dart';
 import 'bonus/fishing_cat_game.dart';
 import 'bonus/mouse_hunt_game.dart';
+import 'bonus/tree_climber_game.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
 import 'data/slot_symbol_sets.dart';
@@ -15,6 +16,7 @@ import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
 import 'services/golden_cat_system.dart';
 import 'services/fishing_cat_system.dart';
+import 'services/tree_climber_system.dart';
 import 'widgets/balance_label.dart';
 import 'widgets/cat_mood_chip.dart';
 import 'widgets/coin_fly_overlay.dart';
@@ -94,6 +96,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         CatSlotController(
           goldenCatPolicy: GoldenCatSymbolPolicy(),
           fishingCatPolicy: FishingCatSymbolPolicy(),
+          treeClimberPolicy: TreeClimberSymbolPolicy(),
           progressStore: SharedPreferencesBonusProgressStore(),
           walletStore: SharedPreferencesWalletStore(),
         );
@@ -178,7 +181,8 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
           if (i == 2 &&
               (_controller.isBonusSpin ||
                   _controller.goldenCatVisibleCount >= 3 ||
-                  _controller.fishingCatVisibleCount >= 3)) {
+                  _controller.fishingCatVisibleCount >= 3 ||
+                  _controller.treeClimberVisibleCount >= 3)) {
             HapticFeedback.heavyImpact();
             if (mounted) setState(() => _bonusRevealed = true);
           } else {
@@ -245,7 +249,9 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         kMouseHuntGameId => 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.',
         kGoldenCatGameId =>
           'Drei Goldkatzen! Die Golden Cat Challenge beginnt.',
-        _ => 'Drei Angelkatzen! Am stillen Teich bewegt sich etwas.',
+        kFishingCatGameId =>
+          'Drei Angelkatzen! Am stillen Teich bewegt sich etwas.',
+        _ => 'Drei Baumkatzen! Hoch oben rascheln schon die Blätter.',
       };
     });
     if (_lifecycleState != AppLifecycleState.resumed) {
@@ -320,6 +326,23 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _displayCoins = _controller.coins;
       _catMessage =
           'Fishing Cat tauscht ${result.pointsWon} Punkte in ${result.coinsWon} PurrCoins.';
+    });
+  }
+
+  Future<void> _onTreeClimberCompleted(TreeClimberResult result) async {
+    final session = _activeBonusSession;
+    if (session == null) return;
+    final credited = await _controller.creditTreeClimberOnce(session, result);
+    if (!credited || !mounted) return;
+    if (result.coinsWon > 0) {
+      _audio.playCollectSound();
+      HapticFeedback.mediumImpact();
+    }
+    setState(() {
+      _displayCoins = _controller.coins;
+      _catMessage = result.reachedSummit
+          ? 'Baumspitze! Zwei Katzen feiern ${result.coinsWon} PurrCoins.'
+          : 'Tree Climber sichert ${result.pointsWon} Punkte und ${result.coinsWon} PurrCoins.';
     });
   }
 
@@ -556,6 +579,11 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
                 key: const ValueKey('fishing-cat-progress'),
                 label: 'ANGELKATZE',
                 value: _controller.fishingCatProgress,
+              ),
+              _bonusProgressChip(
+                key: const ValueKey('tree-climber-progress'),
+                label: 'BAUMKATZE',
+                value: _controller.treeClimberProgress,
               ),
             ],
           ),
@@ -804,6 +832,16 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
             child: FishingCatGame(
               session: _activeBonusSession!,
               onRoundCompleted: _onFishingCatCompleted,
+              onExit: _exitBonusGame,
+              reduceMotion: _reduceMotion,
+            ),
+          ),
+        if (_showBonusGame &&
+            _activeBonusSession?.game.id == kTreeClimberGameId)
+          Positioned.fill(
+            child: TreeClimberGame(
+              session: _activeBonusSession!,
+              onRoundCompleted: _onTreeClimberCompleted,
               onExit: _exitBonusGame,
               reduceMotion: _reduceMotion,
             ),

@@ -92,13 +92,20 @@ abstract interface class BonusProgressStore {
   Future<void> saveGoldenCatProgress(int value);
   Future<int> loadFishingCatProgress();
   Future<void> saveFishingCatProgress(int value);
+  Future<int> loadTreeClimberProgress();
+  Future<void> saveTreeClimberProgress(int value);
 }
 
 class MemoryBonusProgressStore implements BonusProgressStore {
   int value;
   int fishingValue;
+  int treeValue;
 
-  MemoryBonusProgressStore([this.value = 0, this.fishingValue = 0]);
+  MemoryBonusProgressStore([
+    this.value = 0,
+    this.fishingValue = 0,
+    this.treeValue = 0,
+  ]);
 
   @override
   Future<int> loadGoldenCatProgress() async => value;
@@ -115,15 +122,25 @@ class MemoryBonusProgressStore implements BonusProgressStore {
   Future<void> saveFishingCatProgress(int value) async {
     fishingValue = value;
   }
+
+  @override
+  Future<int> loadTreeClimberProgress() async => treeValue;
+
+  @override
+  Future<void> saveTreeClimberProgress(int value) async {
+    treeValue = value;
+  }
 }
 
 class SharedPreferencesBonusProgressStore implements BonusProgressStore {
   static const _goldenCatKey = 'bonus.golden_cat.progress.v1';
   static const _legacyCatSwitchKey = 'bonus.cat_switch.progress.v1';
   static const _fishingCatKey = 'bonus.fishing_cat.progress.v1';
+  static const _treeClimberKey = 'bonus.tree_climber.progress.v1';
   SharedPreferencesAsync? _preferences;
   int _fallbackValue = 0;
   int _fishingFallbackValue = 0;
+  int _treeFallbackValue = 0;
 
   SharedPreferencesBonusProgressStore({SharedPreferencesAsync? preferences})
     : _preferences = preferences;
@@ -168,6 +185,25 @@ class SharedPreferencesBonusProgressStore implements BonusProgressStore {
     _fishingFallbackValue = value.clamp(0, 2);
     try {
       await _prefs.setInt(_fishingCatKey, _fishingFallbackValue);
+    } on StateError {
+      // Widget tests run without a registered platform store.
+    }
+  }
+
+  @override
+  Future<int> loadTreeClimberProgress() async {
+    try {
+      return (await _prefs.getInt(_treeClimberKey) ?? 0).clamp(0, 2);
+    } on StateError {
+      return _treeFallbackValue;
+    }
+  }
+
+  @override
+  Future<void> saveTreeClimberProgress(int value) async {
+    _treeFallbackValue = value.clamp(0, 2);
+    try {
+      await _prefs.setInt(_treeClimberKey, _treeFallbackValue);
     } on StateError {
       // Widget tests run without a registered platform store.
     }

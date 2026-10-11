@@ -8,6 +8,7 @@ import 'services/bonus_trigger_policy.dart';
 import 'services/golden_cat_system.dart';
 import 'services/fishing_cat_system.dart';
 import 'services/payout_service.dart';
+import 'services/tree_climber_system.dart';
 
 class CatSlotController {
   static const int _startCoins = 10;
@@ -18,6 +19,7 @@ class CatSlotController {
   final BonusTriggerPolicy _bonusTriggerPolicy;
   final GoldenCatSymbolPolicy _goldenCatPolicy;
   final FishingCatSymbolPolicy _fishingCatPolicy;
+  final TreeClimberSymbolPolicy _treeClimberPolicy;
   final BonusProgressStore _progressStore;
   final WalletStore _walletStore;
   final Duration spinLeadIn;
@@ -29,6 +31,7 @@ class CatSlotController {
     BonusTriggerPolicy? bonusTriggerPolicy,
     GoldenCatSymbolPolicy? goldenCatPolicy,
     FishingCatSymbolPolicy? fishingCatPolicy,
+    TreeClimberSymbolPolicy? treeClimberPolicy,
     BonusProgressStore? progressStore,
     WalletStore? walletStore,
     this.spinLeadIn = const Duration(milliseconds: 760),
@@ -38,6 +41,8 @@ class CatSlotController {
        _bonusTriggerPolicy = bonusTriggerPolicy ?? BonusTriggerPolicy(),
        _goldenCatPolicy = goldenCatPolicy ?? GoldenCatSymbolPolicy.fixed(0),
        _fishingCatPolicy = fishingCatPolicy ?? FishingCatSymbolPolicy.fixed(0),
+       _treeClimberPolicy =
+           treeClimberPolicy ?? TreeClimberSymbolPolicy.fixed(0),
        _progressStore = progressStore ?? MemoryBonusProgressStore(),
        _walletStore = walletStore ?? MemoryWalletStore();
 
@@ -61,6 +66,7 @@ class CatSlotController {
   bool _initialized = false;
   int goldenCatProgress = 0;
   int fishingCatProgress = 0;
+  int treeClimberProgress = 0;
 
   int _bonusSessionSerial = 0;
   final Set<String> _creditedBonusTransactions = {};
@@ -73,6 +79,8 @@ class CatSlotController {
       VisibleBonusCounter.count(reels, kGoldenCatBonusSymbolId);
   int get fishingCatVisibleCount =>
       VisibleBonusCounter.count(reels, kFishingCatBonusSymbolId);
+  int get treeClimberVisibleCount =>
+      VisibleBonusCounter.count(reels, kTreeClimberBonusSymbolId);
 
   Future<void> initialize() => _initializing ??= _loadPersistentState();
 
@@ -80,11 +88,13 @@ class CatSlotController {
     final values = await Future.wait([
       _progressStore.loadGoldenCatProgress(),
       _progressStore.loadFishingCatProgress(),
+      _progressStore.loadTreeClimberProgress(),
       _walletStore.load(),
     ]);
     goldenCatProgress = values[0] as int;
     fishingCatProgress = values[1] as int;
-    final wallet = values[2] as WalletSnapshot?;
+    treeClimberProgress = values[2] as int;
+    final wallet = values[3] as WalletSnapshot?;
     if (wallet != null) {
       coins = max(0, wallet.coins);
       _creditedBonusTransactions.addAll(wallet.creditedTransactions);
@@ -174,6 +184,13 @@ class CatSlotController {
       symbolId: kFishingCatBonusSymbolId,
       protectCenterLine: mouseHuntTriggered,
     );
+    final requestedTreeClimberSymbols = _treeClimberPolicy.visibleCount();
+    _injectBonusSymbols(
+      finalReels,
+      requestedTreeClimberSymbols,
+      symbolId: kTreeClimberBonusSymbolId,
+      protectCenterLine: mouseHuntTriggered,
+    );
     await Future.delayed(spinLeadIn);
 
     for (int i = 0; i < 3; i++) {
@@ -187,11 +204,14 @@ class CatSlotController {
     isSpinning = false;
     final visibleGoldenCats = goldenCatVisibleCount;
     final visibleFishingCats = fishingCatVisibleCount;
+    final visibleTreeClimbers = treeClimberVisibleCount;
     await _applyGoldenCatProgress(visibleGoldenCats);
     await _applyFishingCatProgress(visibleFishingCats);
+    await _applyTreeClimberProgress(visibleTreeClimbers);
     if (!mouseHuntTriggered &&
         visibleGoldenCats < 3 &&
-        visibleFishingCats < 3) {
+        visibleFishingCats < 3 &&
+        visibleTreeClimbers < 3) {
       final spinResult = _payout.evaluate(slots);
       if (spinResult.isWin) {
         latestWin = spinResult.coinsWon;
@@ -248,6 +268,18 @@ class CatSlotController {
     if (total >= 3) _enqueueBonus(kGoldenCatDefinition);
     goldenCatProgress = total % 3;
     await _progressStore.saveGoldenCatProgress(goldenCatProgress);
+  }
+
+  Future<void> _applyTreeClimberProgress(int visibleCount) async {
+    if (visibleCount >= 3) {
+      _enqueueBonus(kTreeClimberDefinition);
+      return;
+    }
+    if (visibleCount <= 0) return;
+    final total = treeClimberProgress + visibleCount;
+    if (total >= 3) _enqueueBonus(kTreeClimberDefinition);
+    treeClimberProgress = total % 3;
+    await _progressStore.saveTreeClimberProgress(treeClimberProgress);
   }
 
   void _enqueueBonus(BonusGameDefinition game) {
@@ -360,6 +392,37 @@ class CatSlotController {
     coins += fishingResult.coinsWon;
     latestWin = fishingResult.coinsWon;
     result = 'Fishing Cat: +${fishingResult.coinsWon} PurrCoins';
+    await _persistWallet();
+    return true;
+  }
+
+  Future<bool> creditTreeClimberOnce(
+    BonusGameSession session,
+    TreeClimberResult treeResult,
+  ) async {
+    final expectedPoints = TreeClimberEconomy.pointsForSection(
+      treeResult.sectionsReached,
+    );
+    final expectedCoins = TreeClimberEconomy.coinsFor(
+      points: expectedPoints,
+      reachedSummit: treeResult.reachedSummit,
+    );
+    if (session.game.id != kTreeClimberGameId ||
+        treeResult.sectionsReached < 0 ||
+        treeResult.sectionsReached > TreeClimberEconomy.sectionCount ||
+        treeResult.pointsWon != expectedPoints ||
+        treeResult.coinsWon != expectedCoins ||
+        treeResult.reachedSummit !=
+            (treeResult.sectionsReached == TreeClimberEconomy.sectionCount) ||
+        (!treeResult.reachedSummit && !treeResult.cashedOut)) {
+      throw ArgumentError('Tree Climber reward does not match configuration');
+    }
+    if (!_creditedBonusTransactions.add(session.transactionId)) return false;
+    coins += expectedCoins;
+    latestWin = expectedCoins;
+    result = treeResult.reachedSummit
+        ? 'Tree Climber: Baumspitze! +$expectedCoins PurrCoins'
+        : 'Tree Climber: +$expectedCoins PurrCoins';
     await _persistWallet();
     return true;
   }

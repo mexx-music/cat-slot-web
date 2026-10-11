@@ -7,6 +7,7 @@ import 'package:catslot/features/cat_slot/cat_slot_page.dart';
 import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
 import 'package:catslot/features/cat_slot/services/golden_cat_system.dart';
 import 'package:catslot/features/cat_slot/services/fishing_cat_system.dart';
+import 'package:catslot/features/cat_slot/services/tree_climber_system.dart';
 
 class _FixedRandom implements Random {
   final int value;
@@ -319,6 +320,42 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('fishing-result-coins')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('return-from-fishing')));
+    await tester.pump();
+    expect(find.text('CAT SLOT'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('three tree symbols open Tree Climber and return safely', (
+    tester,
+  ) async {
+    final controller = CatSlotController(
+      random: const _FixedRandom(0),
+      bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
+      goldenCatPolicy: GoldenCatSymbolPolicy.fixed(0),
+      fishingCatPolicy: FishingCatSymbolPolicy.fixed(0),
+      treeClimberPolicy: TreeClimberSymbolPolicy.fixed(3),
+      spinLeadIn: Duration.zero,
+      reelStopGap: Duration.zero,
+    );
+    await pumpGame(
+      tester,
+      logicalSize: const Size(390, 844),
+      controller: controller,
+      reduceMotion: true,
+    );
+
+    await tester.tap(find.text('SPIN'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+
+    expect(find.byKey(const ValueKey('tree-climber-game')), findsOneWidget);
+    expect(find.text('SPRINGEN'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('skip-tree-climber')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('tree-result-coins')), findsOneWidget);
+    expect(controller.coins, 9);
+    await tester.tap(find.byKey(const ValueKey('return-from-tree')));
     await tester.pump();
     expect(find.text('CAT SLOT'), findsOneWidget);
     expect(tester.takeException(), isNull);
