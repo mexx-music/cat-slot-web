@@ -172,6 +172,7 @@ class _FishingScenePainter extends CustomPainter {
 
     for (final target in targets) {
       if (caught?.id == target.id) continue;
+      if (!target.visibleAt(worldTime)) continue;
       final position = _p(size, target.positionAt(worldTime));
       _drawTarget(canvas, position, target, size);
     }
@@ -318,10 +319,11 @@ class _FishingScenePainter extends CustomPainter {
       FishingCatchKind.small => const Color(0xFF8AE0D7),
       FishingCatchKind.colorful => const Color(0xFFFF7FA4),
       FishingCatchKind.big => const Color(0xFF6EA9DD),
+      FishingCatchKind.swift => const Color(0xFFB58CFF),
       FishingCatchKind.golden => const Color(0xFFFFD255),
       _ => const Color(0xFF8AE0D7),
     };
-    _drawFish(canvas, p, radius, color, target.swimsRight);
+    _drawFish(canvas, p, radius, color, target.movesRightAt(worldTime));
   }
 
   @override

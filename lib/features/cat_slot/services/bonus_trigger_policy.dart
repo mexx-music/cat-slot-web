@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 class BonusTriggerPolicy {
   final Random _random;
@@ -49,4 +50,35 @@ class BonusEconomy {
       triggerProbability * participationCoins;
   static double get maximumBonusReturnPerSpin =>
       triggerProbability * maximumRoundReward;
+}
+
+class MouseHuntDifficulty {
+  const MouseHuntDifficulty._();
+
+  static const double firstMouseTravel = .10;
+  static const double lastMouseTravel = .36;
+  static const double goldenMouseTravel = .46;
+  static const double catchRadius = .095;
+  static const double goldenCatchRadius = .058;
+  static const double impactProgress = .56;
+
+  static double progressForSpawn(int index) =>
+      (index / max(1, BonusEconomy.mouseCount - 1)).clamp(0, 1);
+
+  static double travelFor({required int index, required bool golden}) {
+    if (golden) return goldenMouseTravel;
+    final progress = progressForSpawn(index);
+    return firstMouseTravel + (lastMouseTravel - firstMouseTravel) * progress;
+  }
+
+  static double catchRadiusFor({required bool golden}) =>
+      golden ? goldenCatchRadius : catchRadius;
+
+  static bool isCatch({
+    required Offset mousePosition,
+    required Offset aimedPosition,
+    required bool golden,
+  }) =>
+      (mousePosition - aimedPosition).distance <=
+      catchRadiusFor(golden: golden);
 }

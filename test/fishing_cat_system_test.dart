@@ -68,10 +68,11 @@ void main() {
 
   test('point values and conversion are centrally configured', () {
     expect(FishingCatEconomy.attempts, 5);
-    expect(FishingCatEconomy.pointsFor(FishingCatchKind.small), 20);
-    expect(FishingCatEconomy.pointsFor(FishingCatchKind.colorful), 50);
+    expect(FishingCatEconomy.pointsFor(FishingCatchKind.small), 10);
+    expect(FishingCatEconomy.pointsFor(FishingCatchKind.colorful), 30);
     expect(FishingCatEconomy.pointsFor(FishingCatchKind.big), 100);
-    expect(FishingCatEconomy.pointsFor(FishingCatchKind.golden), 250);
+    expect(FishingCatEconomy.pointsFor(FishingCatchKind.swift), 200);
+    expect(FishingCatEconomy.pointsFor(FishingCatchKind.golden), 500);
     expect(FishingCatEconomy.pointsFor(FishingCatchKind.boot), 0);
     expect(FishingCatEconomy.pointsFor(FishingCatchKind.treasure), 150);
     expect(FishingCatEconomy.coinsForPoints(249), 24);
@@ -90,8 +91,40 @@ void main() {
         expect(a.depth, b.depth);
         expect(a.speed, b.speed);
         expect(a.size, b.size);
+        expect(a.depthDrift, b.depthDrift);
+        expect(a.visibleFraction, b.visibleFraction);
       }
     }
+    expect(
+      first
+          .expand((attempt) => attempt)
+          .where((target) => target.kind == FishingCatchKind.golden),
+      hasLength(1),
+    );
+  });
+
+  test('fast fish move more and golden fish appear only briefly', () {
+    final targets = FishingEncounterFactory.create(
+      seed: 7357,
+    ).expand((attempt) => attempt).toList();
+    final slowest = targets
+        .where((target) => target.kind == FishingCatchKind.small)
+        .map((target) => target.speed)
+        .reduce(min);
+    final fastest = targets
+        .where(
+          (target) =>
+              target.kind == FishingCatchKind.swift ||
+              target.kind == FishingCatchKind.golden,
+        )
+        .map((target) => target.speed)
+        .reduce(max);
+    final golden = targets.singleWhere(
+      (target) => target.kind == FishingCatchKind.golden,
+    );
+    expect(fastest, greaterThan(slowest * 2));
+    expect(golden.visibleFraction, lessThan(.4));
+    expect(golden.depthDrift, greaterThan(0));
   });
 
   test('collector persists independently and queues Fishing Cat', () async {
@@ -136,21 +169,21 @@ void main() {
     const result = FishingCatResult(
       attemptsCompleted: 5,
       catches: {'small': 2, 'golden': 1, 'boot': 1},
-      pointsWon: 290,
-      coinsWon: 29,
+      pointsWon: 520,
+      coinsWon: 52,
       skipped: false,
     );
 
     expect(await controller.creditFishingCatOnce(session, result), isTrue);
     expect(await controller.creditFishingCatOnce(session, result), isFalse);
-    expect(controller.coins, 38);
+    expect(controller.coins, 61);
 
     final restarted = _controller(
       policy: FishingCatSymbolPolicy.fixed(0),
       walletStore: wallet,
     );
     await restarted.initialize();
-    expect(restarted.coins, 38);
+    expect(restarted.coins, 61);
     expect(await restarted.creditFishingCatOnce(session, result), isFalse);
   });
 
@@ -173,5 +206,25 @@ void main() {
     }
     final rate = bonuses / spins;
     expect(rate, inInclusiveRange(.0165, .0185));
+  });
+
+  test('perfect-information fishing return stays bounded and skill-gated', () {
+    const rounds = 2000;
+    var idealPoints = 0;
+    for (var seed = 0; seed < rounds; seed++) {
+      final encounters = FishingEncounterFactory.create(seed: seed);
+      for (final attempt in encounters) {
+        idealPoints += attempt
+            .map((target) => FishingCatEconomy.pointsFor(target.kind))
+            .reduce(max);
+      }
+    }
+    final idealCoinsPerRound = idealPoints / rounds / 10;
+    final idealCoinsPerSpin =
+        idealCoinsPerRound * FishingCatSymbolPolicy.expectedBonusRoundsPerSpin;
+
+    // This is a perfect-information ceiling, not a human success estimate.
+    expect(idealCoinsPerRound, inInclusiveRange(70, 130));
+    expect(idealCoinsPerSpin, lessThan(2.5));
   });
 }

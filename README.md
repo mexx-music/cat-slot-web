@@ -15,7 +15,7 @@ mehreren visuellen Symbolsets und einer dreistufigen Gewinnanimation.
 
 ## Spielregeln
 
-Die bestehende Spielmathematik ist bewusst unverändert:
+Die bestehende Slot-Mathematik ist bewusst unverändert:
 
 - Startguthaben: 10 PurrCoins
 - Kosten pro Spin: 1 PurrCoin
@@ -29,9 +29,13 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Mouse Hunt dauert 15 Sekunden und enthält elf ruhige Maus-Begegnungen,
   darunter genau eine goldene Maus.
 - Mouse Hunt 2.0 besitzt eine sichtbare Jagdkatze mit Idle-, Alert-, Pounce-,
-  Catch-, Miss- und Celebrate-Zuständen. Treffer werden erst am sichtbaren
-  Fangzeitpunkt gewertet; schnelle Mehrfachtaps sind während des Sprungs
-  gesperrt.
+  Catch-, Miss- und Celebrate-Zuständen. Ein Tipp legt nur den Landepunkt der
+  Pfote fest; gefangen wird erst, wenn Maus und Pfote am sichtbaren
+  Fangzeitpunkt wirklich kollidieren. Mäuse können während des Sprungs
+  entkommen, schnelle Mehrfachtaps bleiben gesperrt.
+- Die Bewegungsstrecke steigt über elf Begegnungen von 0,10 auf 0,36 der
+  Szenenbreite. Die goldene Maus bewegt sich mit 0,46 besonders schnell und
+  besitzt mit 0,058 eine kleinere Fangzone als normale Mäuse mit 0,095.
 - Katze, Mäuse, Pfotenstaub und Raumdekoration werden vollständig mit
   Flutter-Zeichenoperationen erzeugt. Es wurden keine externen oder
   urheberrechtlich fremden Grafikassets eingebunden.
@@ -61,13 +65,15 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Ein zentrales Katzenbild wechselt framegenau zwischen normaler und goldener
   Katze. Der große `JETZT!`-Button wertet exakt den vom Flutter-Ticker zuletzt
   gezeichneten Zustand aus; es gibt keine nachträgliche Zufallsentscheidung.
-- Nach einem Treffer kann der Spieler 50, 100, 250, 500 oder 1.000 PurrCoins
-  sichern oder die nächste Stufe riskieren. Nach Level 5 besteht ausdrücklich
-  die Wahl zwischen 1.000 Coins und Level 6. Ein Treffer in Level 6 zahlt
-  automatisch insgesamt 2.500 Coins aus.
-- Die sechs Multiplikatoren ×1/×2/×5/×10/×20/×50 und die tatsächlichen
-  Bildwechselintervalle 700/550/400/300/220/160 ms liegen zentral in
-  `GoldenCatEconomy`. Eine sechsteilige Leiste zeigt den Fortschritt.
+- Nach einem Treffer kann der Spieler 50, 100, 250, 500, 1.000 oder 2.500
+  PurrCoins sichern oder die nächste Stufe riskieren. Nach Level 6 besteht die
+  ausdrückliche Wahl zwischen 2.500 Coins und Level 7 „Golden Master“. Ein
+  Treffer dort zahlt insgesamt 5.000 Coins aus.
+- Die sieben Multiplikatoren ×1/×2/×5/×10/×20/×50/×100 und die Grundintervalle
+  700/550/400/300/220/160/120 ms liegen zentral in `GoldenCatEconomy`. Golden
+  Master verwendet drei wechselnde Normalfenster von 144/168/132 ms, aber
+  durchgehend faire Goldfenster von jeweils 120 ms. Eine siebenteilige Leiste
+  zeigt den Fortschritt.
 - Ein Fehltreffer verwirft nur den ungesicherten Bonus. Das bestehende Guthaben
   wird nie belastet. Doppeltaps zählen pro Stufe höchstens einmal.
 - Bei App-Pause friert die laufende Risikostufe ein und startet nach Rückkehr
@@ -77,11 +83,11 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   Standardset verwendet eine eigene Flutter-Illustration statt Emojis.
 - Die reproduzierbare 200.000-Spin-Simulation ergibt ungefähr eine Golden-Cat-
   Runde je 38 Spins (2,6 %) und Mouse Hunt weiterhin etwa je 25 Spins (4 %).
-- Bei zufälligem Timing und konsequentem Risiko über alle sechs Stufen beträgt
-  der mathematische Golden-Cat-Mittelwert 39,0625 Coins je Challenge
+- Bei zufälligem Timing und konsequentem Risiko über alle sieben Stufen beträgt
+  der mathematische Golden-Cat-Mittelwert weiterhin 39,0625 Coins je Challenge
   beziehungsweise rund 1,02 je Spin. Ein geübter Spieler kann deutlich mehr
-  erreichen; im theoretischen perfekten Fall wären es 2.500 je Challenge
-  beziehungsweise rund 65 Coins je Spin. Die
+  erreichen; im theoretischen perfekten Fall wären es 5.000 je Challenge
+  beziehungsweise rund 130 Coins je Spin. Die
   Test-Gewinnleiter ist daher bewusst zentral konfigurierbar und vor einer
   Echtgeld- oder kompetitiven Nutzung neu zu balancieren.
 - Wenn Mouse Hunt und Golden Cat im selben Spin auslösen, wird Mouse Hunt
@@ -92,17 +98,21 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Das dritte stabile Bonussymbol `bonus_fishing_cat` erscheint unabhängig auf
   allen neun Positionen. Drei sichtbare Symbole starten **Fishing Cat** direkt;
   einzelne Symbole füllen den eigenen persistenten `ANGELKATZE 0/3`-Sammler.
-- Am ruhigen Teich schwimmen vier Ziele pro Versuch in unterschiedlichen
-  Tiefen, Größen und Geschwindigkeiten. Der Spieler hat genau fünf Würfe. Der
+- Am ruhigen Teich schwimmen vier Ziele pro Versuch in deutlich
+  unterschiedlichen Tiefen, Größen und Geschwindigkeiten. Schnelle Fische
+  wechseln an den Rändern die Richtung und verändern teilweise ihre Tiefe.
+  Der Spieler hat genau fünf Würfe. Der
   große Button startet nur die sichtbare Hakenbahn; ein Fang entsteht aus der
   tatsächlichen Überschneidung von Haken und Ziel – nie aus einer nachträglichen
   Zufallsentscheidung.
-- Kleine, bunte, große und goldene Fische, Schatzkiste, alter Stiefel und eine
-  seltene Gummiente besitzen eigene Flutter-Zeichnungen. Die Angelkatze reagiert
-  mit Idle-, Alert-, Cast-, Pull-, Success-, Surprise- und Celebrate-Zuständen.
-- Die zentrale Punktetabelle liegt in `FishingCatEconomy`: kleiner Fisch 20,
-  bunter Fisch 50, großer Fisch 100, Goldfisch 250, Stiefel 0, Schatz 150 und
-  Gummiente 10 Punkte. Erst das Rundenergebnis rechnet 10 Punkte in einen
+- Kleine, bunte, große, sehr schnelle und goldene Fische, Schatzkiste, alter
+  Stiefel und eine seltene Gummiente besitzen eigene Flutter-Zeichnungen. Pro
+  Runde wird genau ein Goldfisch erzeugt; sein kurzes Sichtfenster von 32 % und
+  seine hohe Geschwindigkeit machen ihn zum seltenen Meisterfang.
+- Die zentrale Punktetabelle liegt in `FishingCatEconomy`: langsamer Fisch 10,
+  normaler bunter Fisch 30, schneller großer Fisch 100, sehr schneller Fisch
+  200, Goldfisch 500, Stiefel 0, Schatz 150 und Gummiente 10 Punkte. Erst das
+  Rundenergebnis rechnet 10 Punkte in einen
   PurrCoin um; Punkte und Wallet-Coins bleiben technisch getrennt.
 - Ein Abbruch behält alle bereits erspielten Punkte. Bei einer App-Unterbrechung
   wird ein laufender Wurf sicher verworfen, ohne einen der fünf Versuche zu
@@ -114,10 +124,11 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   eines Wurfs sind gesperrt, und das persistente Wallet akzeptiert jede
   Bonus-Transaktion höchstens einmal.
 - Die reproduzierbare 200.000-Spin-Simulation ergibt etwa 1,73 % Fishing-Cat-
-  Runden, also ungefähr eine Runde je 58 Spins. Bei fünf zufällig vollständig
-  gefangenen Zielen liegt der Modellmittelwert bei rund 36 PurrCoins pro Runde
-  beziehungsweise 0,62 Coin pro Spin. Der theoretische Höchstfang von fünf
-  Goldfischen ergibt 125 Coins beziehungsweise rund 2,17 Coins pro Spin.
+  Runden, also ungefähr eine Runde je 58 Spins. Ein zusätzlicher
+  Perfect-Information-Test begrenzt den theoretischen, nicht als menschliche
+  Erfolgsquote zu verstehenden Bestwert der angebotenen Ziele auf unter 2,5
+  Coins pro Spin. Reale Fänge liegen wegen Bewegung, Hakenlauf und kurzem
+  Goldfenster darunter.
 - Treffen mehrere Bonusarten zusammen, bleibt die feste Reihenfolge erhalten:
   Mouse Hunt, Golden Cat Challenge, Fishing Cat, Tree Climber. Keine Runde
   überschreibt eine andere, und normale Katzen-Auszahlungen bleiben unverändert.
@@ -135,6 +146,11 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   dieselbe ballistische Flugbahn. Die Landung wird ausschließlich aus dem
   geometrischen Schnittpunkt mit der sichtbaren Astbreite berechnet. Es gibt
   weder eine versteckte Trefferchance noch eine nachträgliche Korrektur.
+- Die Astbreiten sinken von 0,30 auf 0,09 der Szenenbreite. Die Vorschau zeigt
+  anfangs die ganze Flugbahn, später schrittweise nur noch 92 bis 40 Prozent.
+  Ein Treffer bleibt dadurch berechenbar, die Meisterabschnitte geben die
+  exakte Lösung aber nicht mehr vor. Eine Landung innerhalb von 0,012 der
+  Astmitte löst die besondere „Perfekter Pfotensprung“-Reaktion aus.
 - Die Katze besitzt Idle-, Ready-, Jump-, Climb-, Land-, Slip- und
   Celebrate-Zustände. Baum, Äste, Blätter, Sonnenstrahlen, Schmetterling,
   Hauptkatze und Gipfelkatze werden als skalierbare Flutter-Zeichnungen ohne

@@ -361,7 +361,10 @@ class _TreeScenePainter extends CustomPainter {
     Size size,
     TreeJumpTrajectory preview,
   ) {
-    final points = preview.previewPoints(27);
+    final points = preview.previewPoints(
+      27,
+      TreeClimberPhysics.previewFractionForSection(section.number),
+    );
     final glowColor = preview.landsOnBranch
         ? const Color(0xFFFFE08A)
         : const Color(0xFFBDEDE0);

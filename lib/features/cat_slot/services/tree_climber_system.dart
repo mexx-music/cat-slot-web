@@ -99,9 +99,9 @@ class TreeClimberCourse {
 
   factory TreeClimberCourse.generate({required int seed}) {
     final random = Random(seed);
-    const distances = [.18, .20, .24, .27, .30, .33, .36, .39, .42, .45];
-    const heights = [.26, .28, .30, .32, .35, .37, .38, .39, .40, .41];
-    const widths = [.40, .36, .29, .27, .24, .22, .18, .16, .13, .11];
+    const distances = [.20, .23, .27, .30, .33, .36, .39, .42, .45, .48];
+    const heights = [.27, .29, .32, .34, .36, .38, .39, .40, .41, .42];
+    const widths = [.30, .27, .23, .20, .18, .16, .14, .12, .105, .09];
     var currentX = .5;
     final sections = <TreeClimberSection>[];
     for (var index = 0; index < TreeClimberEconomy.sectionCount; index++) {
@@ -166,8 +166,9 @@ class TreeJumpTrajectory {
   Offset positionAtProgress(double progress) =>
       positionAtTime(flightTime * progress.clamp(0, 1));
 
-  List<Offset> previewPoints([int count = 24]) => [
-    for (var i = 0; i < count; i++) positionAtProgress(i / max(1, count - 1)),
+  List<Offset> previewPoints([int count = 24, double maxProgress = 1]) => [
+    for (var i = 0; i < count; i++)
+      positionAtProgress(i / max(1, count - 1) * maxProgress.clamp(0, 1)),
   ];
 }
 
@@ -180,6 +181,29 @@ class TreeClimberPhysics {
   static const double maxPower = 100;
   static const double gravity = 2.4;
   static const double startY = .72;
+  static const List<double> previewFractions = [
+    1,
+    .92,
+    .84,
+    .76,
+    .68,
+    .61,
+    .55,
+    .49,
+    .44,
+    .40,
+  ];
+
+  static double previewFractionForSection(int section) =>
+      previewFractions[(section - 1).clamp(0, previewFractions.length - 1)];
+
+  static bool isPerfectLanding({
+    required TreeJumpTrajectory trajectory,
+    required TreeClimberSection section,
+  }) =>
+      trajectory.landsOnBranch &&
+      (trajectory.impactX - section.targetX).abs() <=
+          min(.012, section.branchWidth * .12);
 
   static double speedForPower(double powerPercent) =>
       .75 + powerPercent.clamp(minPower, maxPower) * .0095;

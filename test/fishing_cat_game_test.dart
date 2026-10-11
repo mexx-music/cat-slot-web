@@ -99,8 +99,8 @@ void main() {
 
     expect(completed, isNotNull);
     expect(completed!.attemptsCompleted, 5);
-    expect(completed!.pointsWon, 420);
-    expect(completed!.coinsWon, 42);
+    expect(completed!.pointsWon, 660);
+    expect(completed!.coinsWon, 66);
     expect(completed!.catches['boot'], 1);
     expect(find.byKey(const ValueKey('fishing-result-coins')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -195,13 +195,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
 
       expect(find.text('2/5'), findsOneWidget);
-      expect(find.text('250 P'), findsOneWidget);
+      expect(find.text('500 P'), findsOneWidget);
       expect(find.text('ANGEL AUSWERFEN'), findsOneWidget);
 
       tickerEnabled.value = true;
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('2/5'), findsOneWidget);
-      expect(find.text('250 P'), findsOneWidget);
+      expect(find.text('500 P'), findsOneWidget);
     },
   );
 
@@ -239,7 +239,7 @@ void main() {
     expect(results, hasLength(3));
     for (final result in results) {
       expect(result.attemptsCompleted, 5);
-      expect(result.pointsWon, 70);
+      expect(result.pointsWon, 40);
       expect(result.catches.values.fold<int>(0, (a, b) => a + b), 3);
     }
   });

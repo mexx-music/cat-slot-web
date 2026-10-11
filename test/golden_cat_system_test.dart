@@ -176,6 +176,22 @@ void main() {
     expect(controller.coins, 2509);
   });
 
+  test('Golden Master payout is validated and credited exactly once', () async {
+    final controller = _controller(policy: GoldenCatSymbolPolicy.fixed(3));
+    await controller.spin(() {});
+    final session = controller.beginPendingBonus()!;
+    const result = GoldenCatResult(
+      stageReached: 7,
+      coinsWon: 5000,
+      cashedOut: true,
+      missed: false,
+    );
+
+    expect(await controller.creditGoldenCatOnce(session, result), isTrue);
+    expect(await controller.creditGoldenCatOnce(session, result), isFalse);
+    expect(controller.coins, 5009);
+  });
+
   test('miss records the transaction but never removes wallet coins', () async {
     final controller = _controller(policy: GoldenCatSymbolPolicy.fixed(3));
     await controller.spin(() {});
@@ -220,9 +236,10 @@ void main() {
     expect(goldenRate, inInclusiveRange(0.024, 0.028));
     expect(mouseRate, inInclusiveRange(0.038, 0.042));
 
-    // A random-timing player who always risks all six stages succeeds with
-    // probability 1/64: 39.0625 coins per challenge, about 1.02 per spin.
-    const randomRiskExpectedPerChallenge = 2500 / 64;
+    // A random-timing player who always risks all seven stages succeeds with
+    // probability 1/128. Doubling 2500 to 5000 therefore preserves the same
+    // 39.0625-coin expectation per challenge, about 1.02 per spin.
+    const randomRiskExpectedPerChallenge = 5000 / 128;
     expect(
       goldenRate * randomRiskExpectedPerChallenge,
       inInclusiveRange(.95, 1.10),
@@ -230,11 +247,47 @@ void main() {
   });
 
   test('speed and prize ladder match the documented central configuration', () {
-    expect(GoldenCatEconomy.payouts, [50, 100, 250, 500, 1000, 2500]);
-    expect(GoldenCatEconomy.multipliers, [1, 2, 5, 10, 20, 50]);
+    expect(GoldenCatEconomy.payouts, [50, 100, 250, 500, 1000, 2500, 5000]);
+    expect(GoldenCatEconomy.multipliers, [1, 2, 5, 10, 20, 50, 100]);
     expect(
       GoldenCatEconomy.switchIntervals.map((value) => value.inMilliseconds),
-      [700, 550, 400, 300, 220, 160],
+      [700, 550, 400, 300, 220, 160, 120],
     );
+    expect(GoldenCatEconomy.nameForStage(7), 'GOLDEN MASTER');
   });
+
+  test(
+    'Golden Master rhythm varies only normal holds and keeps fair windows',
+    () {
+      expect(
+        GoldenCatTiming.goldenMasterSegments
+            .where((segment) => segment.golden)
+            .map((segment) => segment.duration.inMilliseconds),
+        everyElement(120),
+      );
+      expect(
+        GoldenCatTiming.goldenMasterSegments
+            .where((segment) => !segment.golden)
+            .map((segment) => segment.duration.inMilliseconds)
+            .toSet(),
+        {132, 144, 168},
+      );
+      final cycleMicros =
+          GoldenCatTiming.goldenMasterCycleDuration.inMicroseconds;
+      expect(
+        GoldenCatTiming.isGoldenForStage(
+          stage: 7,
+          cycleValue: 143000 / cycleMicros,
+        ),
+        isFalse,
+      );
+      expect(
+        GoldenCatTiming.isGoldenForStage(
+          stage: 7,
+          cycleValue: 145000 / cycleMicros,
+        ),
+        isTrue,
+      );
+    },
+  );
 }

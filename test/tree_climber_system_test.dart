@@ -120,6 +120,41 @@ void main() {
     }
   });
 
+  test('later climbs narrow the preview without changing real physics', () {
+    expect(TreeClimberPhysics.previewFractionForSection(1), 1);
+    expect(TreeClimberPhysics.previewFractionForSection(10), lessThan(.5));
+    final course = TreeClimberCourse.generate(seed: 417);
+    expect(course.sections.first.branchWidth, greaterThan(.25));
+    expect(course.sections.last.branchWidth, lessThan(.1));
+  });
+
+  test('perfect jump requires a real center landing', () {
+    const section = TreeClimberSection(
+      number: 8,
+      targetX: .7,
+      heightGain: .36,
+      branchWidth: .12,
+    );
+    final solution = TreeClimberPhysics.findSolution(
+      startX: .5,
+      section: section,
+    )!;
+    final trajectory = TreeClimberPhysics.trajectoryFor(
+      startX: .5,
+      section: section,
+      angleDegrees: solution.angleDegrees,
+      powerPercent: solution.powerPercent,
+    );
+    expect(trajectory.landsOnBranch, isTrue);
+    expect(
+      TreeClimberPhysics.isPerfectLanding(
+        trajectory: trajectory,
+        section: section,
+      ),
+      isTrue,
+    );
+  });
+
   test('checkpoint points and summit conversion stay centrally configured', () {
     expect(TreeClimberEconomy.pointsForSection(1), 0);
     expect(TreeClimberEconomy.pointsForSection(2), 20);

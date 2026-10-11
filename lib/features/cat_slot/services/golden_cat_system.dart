@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class GoldenCatEconomy {
   GoldenCatEconomy._();
 
-  static const List<int> multipliers = [1, 2, 5, 10, 20, 50];
-  static const List<int> payouts = [50, 100, 250, 500, 1000, 2500];
+  static const List<int> multipliers = [1, 2, 5, 10, 20, 50, 100];
+  static const List<int> payouts = [50, 100, 250, 500, 1000, 2500, 5000];
   static const List<Duration> switchIntervals = [
     Duration(milliseconds: 700),
     Duration(milliseconds: 550),
@@ -15,12 +15,22 @@ class GoldenCatEconomy {
     Duration(milliseconds: 300),
     Duration(milliseconds: 220),
     Duration(milliseconds: 160),
+    Duration(milliseconds: 120),
   ];
 
   static int get stages => payouts.length;
   static int payoutForStage(int stage) => payouts[stage - 1];
   static int multiplierForStage(int stage) => multipliers[stage - 1];
   static Duration intervalForStage(int stage) => switchIntervals[stage - 1];
+  static String nameForStage(int stage) =>
+      stage == stages ? 'GOLDEN MASTER' : 'LEVEL $stage';
+}
+
+class GoldenCatBlinkSegment {
+  final bool golden;
+  final Duration duration;
+
+  const GoldenCatBlinkSegment({required this.golden, required this.duration});
 }
 
 /// Pure timing rule shared by the game and timing-boundary tests.
@@ -32,6 +42,65 @@ class GoldenCatTiming {
   const GoldenCatTiming._();
 
   static bool isGoldenAtCycleValue(double value) => value >= .5;
+
+  /// Level 7 varies the normal-cat hold while preserving a full 120 ms golden
+  /// window every time. At 60 Hz that is about seven painted frames, and even
+  /// a throttled 30 Hz device still gets three to four fair golden frames.
+  static const List<GoldenCatBlinkSegment> goldenMasterSegments = [
+    GoldenCatBlinkSegment(golden: false, duration: Duration(milliseconds: 144)),
+    GoldenCatBlinkSegment(golden: true, duration: Duration(milliseconds: 120)),
+    GoldenCatBlinkSegment(golden: false, duration: Duration(milliseconds: 168)),
+    GoldenCatBlinkSegment(golden: true, duration: Duration(milliseconds: 120)),
+    GoldenCatBlinkSegment(golden: false, duration: Duration(milliseconds: 132)),
+    GoldenCatBlinkSegment(golden: true, duration: Duration(milliseconds: 120)),
+  ];
+
+  static Duration get goldenMasterCycleDuration => Duration(
+    milliseconds: goldenMasterSegments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.duration.inMilliseconds,
+    ),
+  );
+
+  static Duration cycleDurationForStage(
+    int stage, {
+    bool reduceMotion = false,
+  }) {
+    if (reduceMotion) {
+      final milliseconds = max(
+        600,
+        GoldenCatEconomy.intervalForStage(stage).inMilliseconds,
+      );
+      return Duration(milliseconds: milliseconds * 2);
+    }
+    if (stage == GoldenCatEconomy.stages) return goldenMasterCycleDuration;
+    return GoldenCatEconomy.intervalForStage(stage) * 2;
+  }
+
+  static Duration firstGoldenOffsetForStage(int stage) {
+    if (stage == GoldenCatEconomy.stages) {
+      return goldenMasterSegments.first.duration;
+    }
+    return GoldenCatEconomy.intervalForStage(stage);
+  }
+
+  static bool isGoldenForStage({
+    required int stage,
+    required double cycleValue,
+    bool reduceMotion = false,
+  }) {
+    if (reduceMotion || stage != GoldenCatEconomy.stages) {
+      return isGoldenAtCycleValue(cycleValue);
+    }
+    final elapsed =
+        cycleValue.clamp(0.0, 1.0) * goldenMasterCycleDuration.inMicroseconds;
+    var boundary = 0;
+    for (final segment in goldenMasterSegments) {
+      boundary += segment.duration.inMicroseconds;
+      if (elapsed < boundary) return segment.golden;
+    }
+    return goldenMasterSegments.last.golden;
+  }
 }
 
 class GoldenCatSymbolPolicy {

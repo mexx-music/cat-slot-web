@@ -187,15 +187,21 @@ class _TreeClimberGameState extends State<TreeClimberGame>
     _phase = _ClimberPhase.feedback;
     if (_sampledSuccess) {
       _terminalMiss = false;
+      final perfect = TreeClimberPhysics.isPerfectLanding(
+        trajectory: _activeTrajectory!,
+        section: _activeSection!,
+      );
       _sectionsReached++;
       _catX = _activeSection!.targetX;
       _cameraStartY = _activeTrajectory!.targetY;
-      _pose = _sectionsReached == TreeClimberEconomy.sectionCount
+      _pose = perfect || _sectionsReached == TreeClimberEconomy.sectionCount
           ? TreeCatPose.celebrate
           : TreeCatPose.land;
       _message = _sectionsReached == TreeClimberEconomy.sectionCount
-          ? 'Baumspitze! Da wartet schon eine neue Katzenfreundin.'
-          : _landingMessage(_sectionsReached);
+          ? perfect
+                ? 'Perfekter Gipfelsprung! Zwei Katzen feiern die Meisterpfote.'
+                : 'Baumspitze! Da wartet schon eine neue Katzenfreundin.'
+          : _landingMessage(_sectionsReached, perfect: perfect);
       HapticFeedback.mediumImpact();
       if (widget.reduceMotion) {
         _camera.value = 1;
@@ -227,7 +233,10 @@ class _TreeClimberGameState extends State<TreeClimberGame>
     );
   }
 
-  String _landingMessage(int section) {
+  String _landingMessage(int section, {required bool perfect}) {
+    if (perfect) {
+      return 'Perfekter Pfotensprung! Genau die Astmitte getroffen.';
+    }
     if (TreeClimberEconomy.isDecisionSection(section)) {
       return 'Sicherer Ast erreicht: $_points Punkte. Sichern oder höher?';
     }

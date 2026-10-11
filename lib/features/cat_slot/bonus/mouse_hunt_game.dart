@@ -132,22 +132,31 @@ class _MouseHuntGameState extends State<MouseHuntGame>
     }
     _mouseLifeTimer?.cancel();
     final start = Offset(
-      0.10 + _random.nextDouble() * 0.72,
-      0.12 + _random.nextDouble() * 0.62,
+      0.14 + _random.nextDouble() * 0.68,
+      0.14 + _random.nextDouble() * 0.56,
     );
+    final golden = _spawned == _goldenIndex;
+    final travel = MouseHuntDifficulty.travelFor(
+      index: _spawned,
+      golden: golden,
+    );
+    final direction = _random.nextDouble() * pi * 2;
     final drift = Offset(
-      (_random.nextDouble() - 0.5) * 0.20,
-      (_random.nextDouble() - 0.5) * 0.14,
+      cos(direction) * travel,
+      sin(direction) * travel * .62,
     );
     final end = Offset(
-      (start.dx + drift.dx).clamp(0.08, 0.86),
-      (start.dy + drift.dy).clamp(0.10, 0.78),
+      (start.dx + drift.dx).clamp(0.08, 0.92),
+      (start.dy + drift.dy).clamp(0.10, 0.76),
     );
     final target = _MouseTarget(
       index: _spawned,
-      golden: _spawned == _goldenIndex,
+      golden: golden,
       start: start,
       end: widget.reduceMotion ? start : end,
+      curveAmplitude: widget.reduceMotion
+          ? 0
+          : (_random.nextDouble() - .5) * (.05 + travel * .16),
     );
     _spawned++;
     setState(() {
@@ -179,24 +188,19 @@ class _MouseHuntGameState extends State<MouseHuntGame>
   void _catchMouse() {
     final caught = _mouse;
     if (caught == null || _roundFinished || _huntInProgress) return;
-    final current = Offset.lerp(
-      caught.start,
-      caught.end,
-      widget.reduceMotion
-          ? 0
-          : Curves.easeInOut.transform(_mouseController.value),
-    )!;
+    final current = caught.positionAt(
+      widget.reduceMotion ? 0 : _mouseController.value,
+    );
     _startHunt(target: current, caught: caught);
   }
 
   void _missedTap(TapUpDetails details) {
     if (_roundFinished || _huntInProgress || _sceneSize.isEmpty) return;
-    _misses++;
     final target = Offset(
       (details.localPosition.dx / _sceneSize.width).clamp(0.08, 0.92),
       (details.localPosition.dy / _sceneSize.height).clamp(0.14, 0.68),
     );
-    _startHunt(target: target);
+    _startHunt(target: target, caught: _mouse);
   }
 
   Duration get _betweenMouseDelay {
@@ -209,10 +213,9 @@ class _MouseHuntGameState extends State<MouseHuntGame>
     if (_huntInProgress || _roundFinished) return;
     _spawnTimer?.cancel();
     _mouseLifeTimer?.cancel();
-    _mouseController.stop();
     _huntTarget = Offset(target.dx, min(target.dy + 0.06, 0.70));
     _huntedMouse = caught;
-    _huntWillCatch = caught != null;
+    _huntWillCatch = false;
     _lastHuntCaught = false;
     _catchResolved = false;
     _huntInProgress = true;
@@ -228,7 +231,9 @@ class _MouseHuntGameState extends State<MouseHuntGame>
   }
 
   void _advanceHunt() {
-    if (!_huntInProgress || _catchResolved || _huntController.value < 0.56) {
+    if (!_huntInProgress ||
+        _catchResolved ||
+        _huntController.value < MouseHuntDifficulty.impactProgress) {
       return;
     }
     _resolveHuntOutcome();
@@ -239,11 +244,23 @@ class _MouseHuntGameState extends State<MouseHuntGame>
     _catchResolved = true;
     if (!mounted || _roundFinished) return;
     final caught = _huntedMouse;
-    if (_huntWillCatch && caught != null) {
+    final mousePosition = caught?.positionAt(
+      widget.reduceMotion ? 0 : _mouseController.value,
+    );
+    final aimedMouseCenter = Offset(_huntTarget.dx, _huntTarget.dy - .06);
+    _huntWillCatch =
+        caught != null &&
+        mousePosition != null &&
+        MouseHuntDifficulty.isCatch(
+          mousePosition: mousePosition,
+          aimedPosition: aimedMouseCenter,
+          golden: caught.golden,
+        );
+    if (_huntWillCatch && caught != null && mousePosition != null) {
       _lastHuntCaught = true;
       _hitPosition = Offset(
-        _huntTarget.dx * _sceneSize.width,
-        _huntTarget.dy * _sceneSize.height,
+        mousePosition.dx * _sceneSize.width,
+        mousePosition.dy * _sceneSize.height,
       );
       if (caught.golden) {
         _goldenCaught++;
@@ -260,6 +277,7 @@ class _MouseHuntGameState extends State<MouseHuntGame>
       });
       if (!widget.reduceMotion) _hitController.forward(from: 0);
     } else {
+      _misses++;
       HapticFeedback.selectionClick();
       setState(() {
         _mouse = null;
@@ -286,9 +304,13 @@ class _MouseHuntGameState extends State<MouseHuntGame>
 
   void _finishRound({bool skipped = false}) {
     if (_roundFinished) return;
-    // A correctly tapped mouse is already secured even when Skip or an app
-    // interruption arrives during the short visual pounce.
-    if (_huntInProgress && _huntWillCatch && !_catchResolved) {
+    // Only a pounce that has visibly reached its collision frame may score.
+    // Already resolved catches survive Skip/pause; an unfinished leap does not
+    // become an automatic reward merely because the round is interrupted.
+    if (_huntInProgress &&
+        !_catchResolved &&
+        (widget.reduceMotion ||
+            _huntController.value >= MouseHuntDifficulty.impactProgress)) {
       _resolveHuntOutcome();
     }
     _roundFinished = true;
@@ -395,11 +417,7 @@ class _MouseHuntGameState extends State<MouseHuntGame>
                                   : Curves.easeInOut.transform(
                                       _mouseController.value,
                                     );
-                              final position = Offset.lerp(
-                                target.start,
-                                target.end,
-                                t,
-                              )!;
+                              final position = target.positionAt(t);
                               final targetSize = target.golden ? 84.0 : 74.0;
                               return Positioned(
                                 left:
@@ -577,7 +595,7 @@ class _MouseHuntGameState extends State<MouseHuntGame>
                       ),
                       if (!compact)
                         const Text(
-                          'Tippe auf die Mäuse',
+                          'Spring dorthin, wo die Maus gleich ist',
                           style: TextStyle(
                             color: Color(0xFF9FE7E0),
                             fontSize: 11,
@@ -725,13 +743,24 @@ class _MouseTarget {
   final bool golden;
   final Offset start;
   final Offset end;
+  final double curveAmplitude;
 
   const _MouseTarget({
     required this.index,
     required this.golden,
     required this.start,
     required this.end,
+    required this.curveAmplitude,
   });
+
+  Offset positionAt(double progress) {
+    final t = Curves.easeInOut.transform(progress.clamp(0, 1));
+    final base = Offset.lerp(start, end, t)!;
+    final delta = end - start;
+    final length = max(.001, delta.distance);
+    final perpendicular = Offset(-delta.dy / length, delta.dx / length);
+    return base + perpendicular * sin(t * pi * 2) * curveAmplitude;
+  }
 }
 
 class _ScorePill extends StatelessWidget {

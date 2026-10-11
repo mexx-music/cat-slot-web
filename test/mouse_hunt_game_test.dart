@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:catslot/features/cat_slot/bonus/mouse_hunt_game.dart';
 import 'package:catslot/features/cat_slot/data/bonus_games.dart';
 import 'package:catslot/features/cat_slot/models/bonus_game.dart';
+import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
 import 'package:catslot/features/cat_slot/widgets/hunt_cat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,33 @@ const _session = BonusGameSession(
 );
 
 void main() {
+  test('mouse speed escalates and a catch requires actual collision', () {
+    expect(
+      MouseHuntDifficulty.travelFor(index: 10, golden: false),
+      greaterThan(MouseHuntDifficulty.travelFor(index: 0, golden: false) * 3),
+    );
+    expect(
+      MouseHuntDifficulty.travelFor(index: 3, golden: true),
+      greaterThan(MouseHuntDifficulty.lastMouseTravel),
+    );
+    expect(
+      MouseHuntDifficulty.isCatch(
+        mousePosition: const Offset(.5, .5),
+        aimedPosition: const Offset(.55, .5),
+        golden: false,
+      ),
+      isTrue,
+    );
+    expect(
+      MouseHuntDifficulty.isCatch(
+        mousePosition: const Offset(.5, .5),
+        aimedPosition: const Offset(.7, .5),
+        golden: false,
+      ),
+      isFalse,
+    );
+  });
+
   Future<void> pumpGame(
     WidgetTester tester, {
     Size size = const Size(390, 844),
@@ -80,10 +108,12 @@ void main() {
       onCompleted: results.add,
       onExit: () {},
       size: const Size(1024, 1366),
+      reduceMotion: true,
     );
 
-    await tester.pump(const Duration(milliseconds: 360));
+    await tester.pump(const Duration(milliseconds: 1));
     await tester.tap(find.byKey(const ValueKey('mouse-target-0')));
+    await tester.pump(const Duration(milliseconds: 2));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);

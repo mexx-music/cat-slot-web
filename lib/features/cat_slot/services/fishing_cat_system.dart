@@ -1,7 +1,16 @@
 import 'dart:math';
 import 'dart:ui';
 
-enum FishingCatchKind { small, colorful, big, golden, boot, treasure, duck }
+enum FishingCatchKind {
+  small,
+  colorful,
+  big,
+  swift,
+  golden,
+  boot,
+  treasure,
+  duck,
+}
 
 enum FishingCatPose { idle, alert, cast, pull, success, surprise, celebrate }
 
@@ -11,10 +20,11 @@ class FishingCatEconomy {
   static const int attempts = 5;
   static const int pointsPerCoin = 10;
   static const Map<FishingCatchKind, int> points = {
-    FishingCatchKind.small: 20,
-    FishingCatchKind.colorful: 50,
+    FishingCatchKind.small: 10,
+    FishingCatchKind.colorful: 30,
     FishingCatchKind.big: 100,
-    FishingCatchKind.golden: 250,
+    FishingCatchKind.swift: 200,
+    FishingCatchKind.golden: 500,
     FishingCatchKind.boot: 0,
     FishingCatchKind.treasure: 150,
     FishingCatchKind.duck: 10,
@@ -76,6 +86,10 @@ class FishingTarget {
   final double speed;
   final double size;
   final bool swimsRight;
+  final double depthDrift;
+  final double depthSpeed;
+  final double appearancePhase;
+  final double visibleFraction;
 
   const FishingTarget({
     required this.id,
@@ -85,12 +99,35 @@ class FishingTarget {
     required this.speed,
     required this.size,
     required this.swimsRight,
+    this.depthDrift = 0,
+    this.depthSpeed = 0,
+    this.appearancePhase = 0,
+    this.visibleFraction = 1,
   });
 
   Offset positionAt(double worldTime) {
     final signed = swimsRight ? speed : -speed;
-    final x = (startX + worldTime * signed) % 1;
-    return Offset(x < 0 ? x + 1 : x, depth);
+    final phase = (startX + worldTime * signed) % 2;
+    final x = phase <= 1 ? phase : 2 - phase;
+    final y =
+        (depth +
+                sin(worldTime * depthSpeed + appearancePhase * pi * 2) *
+                    depthDrift)
+            .clamp(.36, .90);
+    return Offset(x, y);
+  }
+
+  bool movesRightAt(double worldTime) {
+    final signed = swimsRight ? speed : -speed;
+    final phase = (startX + worldTime * signed) % 2;
+    final reflectedDirection = phase <= 1 ? signed : -signed;
+    return reflectedDirection >= 0;
+  }
+
+  bool visibleAt(double worldTime) {
+    if (visibleFraction >= 1) return true;
+    final phase = (worldTime * .35 + appearancePhase) % 1;
+    return phase < visibleFraction;
   }
 }
 
@@ -102,31 +139,60 @@ class FishingEncounterFactory {
     const weightedKinds = [
       FishingCatchKind.small,
       FishingCatchKind.small,
+      FishingCatchKind.small,
+      FishingCatchKind.colorful,
       FishingCatchKind.colorful,
       FishingCatchKind.colorful,
       FishingCatchKind.big,
+      FishingCatchKind.big,
+      FishingCatchKind.swift,
       FishingCatchKind.boot,
       FishingCatchKind.duck,
       FishingCatchKind.treasure,
-      FishingCatchKind.golden,
     ];
+    final goldenSlot = random.nextInt(FishingCatEconomy.attempts * 4);
     return List.generate(FishingCatEconomy.attempts, (attempt) {
       return List.generate(4, (index) {
-        final kind = weightedKinds[random.nextInt(weightedKinds.length)];
+        final slot = attempt * 4 + index;
+        final kind = slot == goldenSlot
+            ? FishingCatchKind.golden
+            : weightedKinds[random.nextInt(weightedKinds.length)];
         final size = switch (kind) {
-          FishingCatchKind.small => .045,
+          FishingCatchKind.small || FishingCatchKind.swift => .045,
           FishingCatchKind.big => .085,
-          FishingCatchKind.golden || FishingCatchKind.treasure => .07,
+          FishingCatchKind.golden => .052,
+          FishingCatchKind.treasure => .07,
           _ => .06,
+        };
+        final speed = switch (kind) {
+          FishingCatchKind.small => .055 + random.nextDouble() * .035,
+          FishingCatchKind.colorful => .095 + random.nextDouble() * .045,
+          FishingCatchKind.big => .145 + random.nextDouble() * .055,
+          FishingCatchKind.swift => .21 + random.nextDouble() * .06,
+          FishingCatchKind.golden => .25 + random.nextDouble() * .07,
+          FishingCatchKind.boot => .04 + random.nextDouble() * .025,
+          FishingCatchKind.treasure => .07 + random.nextDouble() * .035,
+          FishingCatchKind.duck => .08 + random.nextDouble() * .04,
+        };
+        final changesDepth = switch (kind) {
+          FishingCatchKind.colorful ||
+          FishingCatchKind.big ||
+          FishingCatchKind.swift ||
+          FishingCatchKind.golden => true,
+          _ => false,
         };
         return FishingTarget(
           id: '$attempt-$index-${kind.name}',
           kind: kind,
           startX: .08 + random.nextDouble() * .84,
           depth: .40 + random.nextDouble() * .46,
-          speed: .035 + random.nextDouble() * .075,
+          speed: speed,
           size: size,
           swimsRight: random.nextBool(),
+          depthDrift: changesDepth ? .018 + random.nextDouble() * .045 : 0,
+          depthSpeed: changesDepth ? .75 + random.nextDouble() * .8 : 0,
+          appearancePhase: random.nextDouble(),
+          visibleFraction: kind == FishingCatchKind.golden ? .32 : 1,
         );
       });
     });
@@ -144,6 +210,7 @@ class FishingCollision {
     FishingTarget? closest;
     var closestDistance = double.infinity;
     for (final target in targets) {
+      if (!target.visibleAt(worldTime)) continue;
       final position = target.positionAt(worldTime);
       final dx = (position.dx - hook.dx).abs();
       final dy = (position.dy - hook.dy).abs();
