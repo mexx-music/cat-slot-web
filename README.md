@@ -42,48 +42,56 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   20 PurrCoins Teilnahmebonus. Maximal sind 170 PurrCoins pro Runde möglich.
 - Normale Katzen-Auszahlungen bleiben innerhalb der Nicht-Bonus-Spins
   unverändert. Der Bonus-Gate reduziert ihren Gesamtrücklauf von 0,232 auf
-  0,22272 PurrCoins pro Spin; der Bonus addiert abhängig vom Geschick zwischen
-  0,8 und maximal 6,8 PurrCoins pro Spin im Langzeitmittel.
+  0,22272 PurrCoins pro Spin; zusammen mit den sichtbaren Golden-Cat-Symbolen
+  liegt er rechnerisch bei rund 0,21715. Mouse Hunt addiert abhängig vom
+  Geschick zwischen 0,8 und maximal 6,8 PurrCoins pro Spin im Langzeitmittel.
 
-### Cat Switch
+### Golden Cat Challenge
 
-- Das stabile Symbol `bonus_cat_switch` kann an jeder der neun sichtbaren
-  Rollenpositionen erscheinen. Drei sichtbare Symbole starten **Cat Switch**
-  direkt – Reihe, Diagonale oder freie Verteilung spielen keine Rolle.
+- Das stabile Symbol `bonus_golden_cat` kann an jeder der neun sichtbaren
+  Rollenpositionen erscheinen. Drei sichtbare Symbole starten die
+  **Golden Cat Challenge** direkt – Reihe, Diagonale oder freie Verteilung
+  spielen keine Rolle.
 - Bei einem oder zwei Symbolen wächst der sichtbare Sammler von 0/3 bis 2/3.
   Dieser Fortschritt wird lokal über `shared_preferences` gespeichert und
   bleibt nach einem Neustart erhalten. Beim Überschreiten von drei wird genau
   eine Runde gestartet und der Rest modulo drei weitergeführt.
 - Ein direkter Dreier startet genau eine Runde und verbraucht oder verdoppelt
   den bereits vorhandenen Sammelfortschritt nicht.
-- Cat Switch hat zehn kurze Runden. Ziel- und Ablenkkatze tauschen automatisch
-  die Position, wobei das Tempo von 900 auf mindestens 480 Millisekunden
-  steigt. Während des 190-Millisekunden-Tauschs ist die Eingabe gesperrt; pro
-  Runde zählt höchstens ein Tipp.
-- Vorhandene Katzenbilder des aktiven Symbolsets werden wiederverwendet und
-  mit einem goldenen Zielanhänger ergänzt. Im bildlosen Standardset kommt eine
-  eigene, mit Flutter gezeichnete Katzenillustration statt Emoji-Platzhaltern
-  zum Einsatz.
-- Belohnung: 20 PurrCoins Teilnahmebonus, 8 pro Treffer und 20 zusätzlich bei
-  perfekten 10/10. Damit sind 20 bis 120 PurrCoins möglich. Alle Werte liegen
-  zentral in `CatSwitchEconomy`.
-- Die Symbolverteilung ergibt laut Simulation ungefähr eine Cat-Switch-Runde
-  je 38 Spins (2,6 %): 0,3 % direkte Dreier sowie ein kontrollierter Sammler
-  aus 1–2 Symbolen.
-- Wenn Mouse Hunt und Cat Switch im selben Spin auslösen, wird Mouse Hunt
-  zuerst gespielt; Cat Switch bleibt in der Bonus-Warteschlange erhalten.
-  Keine beiden Overlays werden gleichzeitig geöffnet.
+- Ein zentrales Katzenbild wechselt framegenau zwischen normaler und goldener
+  Katze. Der große `JETZT!`-Button wertet exakt den vom Flutter-Ticker zuletzt
+  gezeichneten Zustand aus; es gibt keine nachträgliche Zufallsentscheidung.
+- Nach einem Treffer kann der Spieler 50, 100, 250 oder 500 PurrCoins sichern
+  oder die nächste Stufe riskieren. Stufe fünf zahlt automatisch 1.000 aus.
+  Die Gesamtgewinne, Multiplikatoren und Intervalle 700/550/400/300/220 ms
+  liegen zentral in `GoldenCatEconomy`.
+- Ein Fehltreffer verwirft nur den ungesicherten Bonus. Das bestehende Guthaben
+  wird nie belastet. Doppeltaps zählen pro Stufe höchstens einmal.
+- Bei App-Pause friert die laufende Risikostufe ein und startet nach Rückkehr
+  auf derselben Stufe mit einem eindeutigen normalen Katzenbild neu.
+- Vorhandene Katzenbilder des aktiven Sets werden wiederverwendet und für die
+  Goldkatze warm eingefärbt, mit Leuchten und Medaillon ergänzt. Das bildlose
+  Standardset verwendet eine eigene Flutter-Illustration statt Emojis.
+- Die reproduzierbare 200.000-Spin-Simulation ergibt ungefähr eine Golden-Cat-
+  Runde je 38 Spins (2,6 %) und Mouse Hunt weiterhin etwa je 25 Spins (4 %).
+- Bei zufälligem Timing und konsequentem Risiko beträgt der mathematische
+  Golden-Cat-Mittelwert 31,25 Coins je Challenge beziehungsweise rund 0,81 je
+  Spin. Ein geübter Spieler kann deutlich mehr erreichen; im theoretischen
+  perfekten Fall wären es 1.000 je Challenge bzw. rund 26 je Spin. Die
+  Test-Gewinnleiter ist daher bewusst zentral konfigurierbar und vor einer
+  Echtgeld- oder kompetitiven Nutzung neu zu balancieren.
+- Wenn Mouse Hunt und Golden Cat im selben Spin auslösen, wird Mouse Hunt
+  zuerst gespielt; Golden Cat bleibt in der Bonus-Warteschlange erhalten.
 
 ## Wallet-Hinweis
 
-Die aktuelle Wallet ist weiterhin sitzungsgebunden und wird bei einem echten
-App-Neustart nicht dauerhaft gespeichert. Bonus-Runden verwenden innerhalb der
-laufenden Sitzung eindeutige Transaktions-IDs, sodass Lifecycle- und doppelte
-UI-Callbacks keine Belohnung zweimal gutschreiben können. Für dauerhafte,
-geräteübergreifend sichere Guthabenstände fehlt noch ein persistentes Wallet-
-Repository beziehungsweise eine serverseitige, idempotente Transaktionsquelle;
-eine rein lokale Speicherung wäre manipulierbar und wurde deshalb nicht als
-„sichere“ Persistenz ausgegeben.
+Guthaben und die letzten 256 gutgeschriebenen Bonus-Transaktions-IDs werden in
+einem gemeinsamen lokalen Wallet-Snapshot gespeichert. Eine Golden-Cat-
+Auszahlung wird vor Freigabe des Ergebnisbuttons persistiert und kann nach
+einem App-Neustart nicht erneut gutgeschrieben werden. Diese lokale Persistenz
+schützt vor UI-Doppelaufrufen und normalen Neustarts, ist aber nicht gegen
+manipulierte Geräte oder Neuinstallation abgesichert. Dafür wäre weiterhin
+eine serverseitige Transaktionsquelle erforderlich.
 
 ## Qualitätssicherung
 
@@ -95,8 +103,9 @@ flutter build ios --simulator --debug --no-codesign
 ```
 
 Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout, den vollständigen
-Spin-Ablauf, Mouse Hunt und Cat Switch einschließlich Treffer/Fehlschlag,
-Sammler-Persistenz, Bonus-Warteschlange, schnellen Mehrfachtaps, Überspringen,
-kleinen sowie großen Displays und App-Unterbrechung.
+Spin-Ablauf, Mouse Hunt und Golden Cat einschließlich Frame-Grenzen,
+Treffer/Fehlschlag, allen Auszahlungsstufen, Risiko, automatischer
+Maximalauszahlung, Sammler- und Wallet-Persistenz, Bonus-Warteschlange,
+schnellen Mehrfachtaps, kleinen sowie großen Displays und App-Unterbrechung.
 Simulations- und Auszahlungstests sichern Bonusfrequenz und bestehende
 Gewinnwerte gegen unbeabsichtigte Änderungen ab.

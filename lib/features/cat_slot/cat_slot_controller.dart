@@ -5,7 +5,7 @@ import 'data/bonus_games.dart';
 import 'data/slot_symbols.dart';
 import 'models/bonus_game.dart';
 import 'services/bonus_trigger_policy.dart';
-import 'services/cat_switch_system.dart';
+import 'services/golden_cat_system.dart';
 import 'services/payout_service.dart';
 
 class CatSlotController {
@@ -15,8 +15,9 @@ class CatSlotController {
   final Random _random;
   final PayoutService _payout;
   final BonusTriggerPolicy _bonusTriggerPolicy;
-  final CatSwitchSymbolPolicy _catSwitchPolicy;
+  final GoldenCatSymbolPolicy _goldenCatPolicy;
   final BonusProgressStore _progressStore;
+  final WalletStore _walletStore;
   final Duration spinLeadIn;
   final Duration reelStopGap;
 
@@ -24,15 +25,17 @@ class CatSlotController {
     Random? random,
     PayoutService payout = const PayoutService(),
     BonusTriggerPolicy? bonusTriggerPolicy,
-    CatSwitchSymbolPolicy? catSwitchPolicy,
+    GoldenCatSymbolPolicy? goldenCatPolicy,
     BonusProgressStore? progressStore,
+    WalletStore? walletStore,
     this.spinLeadIn = const Duration(milliseconds: 760),
     this.reelStopGap = const Duration(milliseconds: 190),
   }) : _random = random ?? Random(),
        _payout = payout,
        _bonusTriggerPolicy = bonusTriggerPolicy ?? BonusTriggerPolicy(),
-       _catSwitchPolicy = catSwitchPolicy ?? CatSwitchSymbolPolicy.fixed(0),
-       _progressStore = progressStore ?? MemoryBonusProgressStore();
+       _goldenCatPolicy = goldenCatPolicy ?? GoldenCatSymbolPolicy.fixed(0),
+       _progressStore = progressStore ?? MemoryBonusProgressStore(),
+       _walletStore = walletStore ?? MemoryWalletStore();
 
   List<List<String>> reels = [
     _initialStrip(0),
@@ -52,7 +55,7 @@ class CatSlotController {
   final List<BonusGameDefinition> _pendingBonusGames = [];
   Future<void>? _initializing;
   bool _initialized = false;
-  int catSwitchProgress = 0;
+  int goldenCatProgress = 0;
 
   int _bonusSessionSerial = 0;
   final Set<String> _creditedBonusTransactions = {};
@@ -61,15 +64,31 @@ class CatSlotController {
   BonusGameDefinition? get pendingBonusGame =>
       _pendingBonusGames.isEmpty ? null : _pendingBonusGames.first;
   bool get isBonusSpin => _pendingBonusGames.isNotEmpty;
-  int get catSwitchVisibleCount =>
-      VisibleBonusCounter.count(reels, kCatSwitchBonusSymbolId);
+  int get goldenCatVisibleCount =>
+      VisibleBonusCounter.count(reels, kGoldenCatBonusSymbolId);
 
-  Future<void> initialize() => _initializing ??= _loadProgress();
+  Future<void> initialize() => _initializing ??= _loadPersistentState();
 
-  Future<void> _loadProgress() async {
-    catSwitchProgress = await _progressStore.loadCatSwitchProgress();
+  Future<void> _loadPersistentState() async {
+    final values = await Future.wait([
+      _progressStore.loadGoldenCatProgress(),
+      _walletStore.load(),
+    ]);
+    goldenCatProgress = values[0] as int;
+    final wallet = values[1] as WalletSnapshot?;
+    if (wallet != null) {
+      coins = max(0, wallet.coins);
+      _creditedBonusTransactions.addAll(wallet.creditedTransactions);
+    }
     _initialized = true;
   }
+
+  Future<void> _persistWallet() => _walletStore.save(
+    WalletSnapshot(
+      coins: max(0, coins),
+      creditedTransactions: Set.of(_creditedBonusTransactions),
+    ),
+  );
 
   static List<String> _initialStrip(int offset) {
     final symbols = kRegularSlotSymbols;
@@ -117,6 +136,7 @@ class CatSlotController {
     if (mouseHuntTriggered) _enqueueBonus(kMouseHuntDefinition);
     reelSpinning = [true, true, true];
     coins -= _spinCost;
+    await _persistWallet();
     result = 'Spinning...';
     onUpdate();
 
@@ -131,10 +151,10 @@ class CatSlotController {
       3,
       (index) => randomStrip(finalCenters[index]),
     );
-    final requestedCatSwitchSymbols = _catSwitchPolicy.visibleCount();
-    _injectCatSwitchSymbols(
+    final requestedGoldenCatSymbols = _goldenCatPolicy.visibleCount();
+    _injectGoldenCatSymbols(
       finalReels,
-      requestedCatSwitchSymbols,
+      requestedGoldenCatSymbols,
       protectCenterLine: mouseHuntTriggered,
     );
     await Future.delayed(spinLeadIn);
@@ -148,9 +168,9 @@ class CatSlotController {
     }
 
     isSpinning = false;
-    final visibleSwitchCats = catSwitchVisibleCount;
-    await _applyCatSwitchProgress(visibleSwitchCats);
-    if (!mouseHuntTriggered && visibleSwitchCats < 3) {
+    final visibleGoldenCats = goldenCatVisibleCount;
+    await _applyGoldenCatProgress(visibleGoldenCats);
+    if (!mouseHuntTriggered && visibleGoldenCats < 3) {
       final spinResult = _payout.evaluate(slots);
       if (spinResult.isWin) {
         latestWin = spinResult.coinsWon;
@@ -163,10 +183,11 @@ class CatSlotController {
     } else {
       result = '${pendingBonusGame!.label} bonus!';
     }
+    await _persistWallet();
     onUpdate();
   }
 
-  void _injectCatSwitchSymbols(
+  void _injectGoldenCatSymbols(
     List<List<String>> targetReels,
     int count, {
     required bool protectCenterLine,
@@ -177,20 +198,20 @@ class CatSlotController {
           if (!protectCenterLine || row != 1) (reel, row),
     ]..shuffle(_random);
     for (final position in positions.take(min(count, positions.length))) {
-      targetReels[position.$1][position.$2] = kCatSwitchBonusSymbolId;
+      targetReels[position.$1][position.$2] = kGoldenCatBonusSymbolId;
     }
   }
 
-  Future<void> _applyCatSwitchProgress(int visibleCount) async {
+  Future<void> _applyGoldenCatProgress(int visibleCount) async {
     if (visibleCount >= 3) {
-      _enqueueBonus(kCatSwitchDefinition);
+      _enqueueBonus(kGoldenCatDefinition);
       return;
     }
     if (visibleCount <= 0) return;
-    final total = catSwitchProgress + visibleCount;
-    if (total >= 3) _enqueueBonus(kCatSwitchDefinition);
-    catSwitchProgress = total % 3;
-    await _progressStore.saveCatSwitchProgress(catSwitchProgress);
+    final total = goldenCatProgress + visibleCount;
+    if (total >= 3) _enqueueBonus(kGoldenCatDefinition);
+    goldenCatProgress = total % 3;
+    await _progressStore.saveGoldenCatProgress(goldenCatProgress);
   }
 
   void _enqueueBonus(BonusGameDefinition game) {
@@ -211,7 +232,10 @@ class CatSlotController {
 
   /// Credits a completed bonus session at most once, even if lifecycle or UI
   /// callbacks deliver the same result again.
-  bool creditBonusOnce(BonusGameSession session, BonusGameResult bonusResult) {
+  Future<bool> creditBonusOnce(
+    BonusGameSession session,
+    BonusGameResult bonusResult,
+  ) async {
     if (session.game.id != kMouseHuntGameId ||
         bonusResult.normalCaught < 0 ||
         bonusResult.normalCaught >= BonusEconomy.mouseCount ||
@@ -234,32 +258,38 @@ class CatSlotController {
     coins += earnedCoins;
     latestWin = earnedCoins;
     result = 'Mouse Hunt: +$earnedCoins PurrCoins';
+    await _persistWallet();
     return true;
   }
 
-  bool creditCatSwitchOnce(
+  Future<bool> creditGoldenCatOnce(
     BonusGameSession session,
-    CatSwitchResult switchResult,
-  ) {
-    if (session.game.id != kCatSwitchGameId ||
-        switchResult.correct < 0 ||
-        switchResult.correct > CatSwitchEconomy.rounds ||
-        switchResult.roundsPlayed < 0 ||
-        switchResult.roundsPlayed > CatSwitchEconomy.rounds) {
-      throw ArgumentError('Invalid Cat Switch result');
+    GoldenCatResult goldenResult,
+  ) async {
+    if (session.game.id != kGoldenCatGameId ||
+        goldenResult.stageReached < 1 ||
+        goldenResult.stageReached > GoldenCatEconomy.stages ||
+        (goldenResult.missed && goldenResult.cashedOut)) {
+      throw ArgumentError('Invalid Golden Cat result');
     }
-    final earnedCoins = CatSwitchEconomy.rewardFor(switchResult.correct);
-    if (switchResult.coinsWon != earnedCoins) {
-      throw ArgumentError('Cat Switch reward does not match configuration');
+    final expectedCoins = goldenResult.missed
+        ? 0
+        : GoldenCatEconomy.payoutForStage(goldenResult.stageReached);
+    if (goldenResult.coinsWon != expectedCoins ||
+        (!goldenResult.missed && !goldenResult.cashedOut)) {
+      throw ArgumentError('Golden Cat reward does not match configuration');
     }
     if (!_creditedBonusTransactions.add(session.transactionId)) return false;
-    coins += earnedCoins;
-    latestWin = earnedCoins;
-    result = 'Cat Switch: +$earnedCoins PurrCoins';
+    coins += expectedCoins;
+    latestWin = expectedCoins;
+    result = goldenResult.missed
+        ? 'Golden Cat: Bonus nicht gesichert'
+        : 'Golden Cat: +$expectedCoins PurrCoins';
+    await _persistWallet();
     return true;
   }
 
-  void resetGame() {
+  Future<void> resetGame() async {
     coins = _startCoins;
     latestWin = 0;
     _pendingBonusGames.clear();
@@ -267,6 +297,8 @@ class CatSlotController {
     isSpinning = false;
     reelSpinning = [false, false, false];
     reels = [_initialStrip(0), _initialStrip(1), _initialStrip(2)];
+    _creditedBonusTransactions.clear();
+    await _persistWallet();
   }
 
   /// Baut die sichtbaren Rollen neu auf Basis des aktuell aktiven Sets auf.

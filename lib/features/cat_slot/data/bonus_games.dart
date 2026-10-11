@@ -2,8 +2,8 @@ import '../models/bonus_game.dart';
 
 const String kMouseHuntGameId = 'mouse_hunt';
 const String kMouseBonusSymbolId = 'bonus_mouse';
-const String kCatSwitchGameId = 'cat_switch';
-const String kCatSwitchBonusSymbolId = 'bonus_cat_switch';
+const String kGoldenCatGameId = 'golden_cat_challenge';
+const String kGoldenCatBonusSymbolId = 'bonus_golden_cat';
 
 const BonusGameDefinition kMouseHuntDefinition = BonusGameDefinition(
   id: kMouseHuntGameId,
@@ -12,18 +12,18 @@ const BonusGameDefinition kMouseHuntDefinition = BonusGameDefinition(
   icon: '🐭',
 );
 
-const BonusGameDefinition kCatSwitchDefinition = BonusGameDefinition(
-  id: kCatSwitchGameId,
-  symbolId: kCatSwitchBonusSymbolId,
-  label: 'Cat Switch',
-  icon: 'CAT',
+const BonusGameDefinition kGoldenCatDefinition = BonusGameDefinition(
+  id: kGoldenCatGameId,
+  symbolId: kGoldenCatBonusSymbolId,
+  label: 'Golden Cat Challenge',
+  icon: 'GOLD',
 );
 
 /// Small registry kept deliberately simple so future games only need metadata
 /// plus their own game component.
 const List<BonusGameDefinition> kBonusGames = [
   kMouseHuntDefinition,
-  kCatSwitchDefinition,
+  kGoldenCatDefinition,
 ];
 
 BonusGameDefinition? bonusGameForSymbolId(String symbolId) {

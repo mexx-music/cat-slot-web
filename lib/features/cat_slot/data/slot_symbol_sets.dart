@@ -67,11 +67,11 @@ List<SlotSymbol> _buildSymbols({String? setFolder}) {
       bonusGameId: kMouseHuntGameId,
     ),
     const SlotSymbol(
-      id: kCatSwitchBonusSymbolId,
-      emoji: 'CAT',
-      label: 'Cat Switch Bonus',
+      id: kGoldenCatBonusSymbolId,
+      emoji: 'GOLD',
+      label: 'Golden Cat Challenge',
       payout: 0,
-      bonusGameId: kCatSwitchGameId,
+      bonusGameId: kGoldenCatGameId,
     ),
   ];
 }

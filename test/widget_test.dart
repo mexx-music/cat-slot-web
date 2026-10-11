@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:catslot/features/cat_slot/cat_slot_controller.dart';
 import 'package:catslot/features/cat_slot/cat_slot_page.dart';
 import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
+import 'package:catslot/features/cat_slot/services/golden_cat_system.dart';
 
 class _FixedRandom implements Random {
   final int value;
@@ -245,6 +246,46 @@ void main() {
 
     expect(find.text('CAT SLOT'), findsOneWidget);
     expect(find.byKey(const ValueKey('mouse-hunt-game')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('three golden cats open the challenge and persist cash-out', (
+    tester,
+  ) async {
+    final wallet = MemoryWalletStore();
+    final controller = CatSlotController(
+      random: const _FixedRandom(0),
+      bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
+      goldenCatPolicy: GoldenCatSymbolPolicy.fixed(3),
+      walletStore: wallet,
+      spinLeadIn: Duration.zero,
+      reelStopGap: Duration.zero,
+    );
+    await pumpGame(
+      tester,
+      logicalSize: const Size(390, 844),
+      controller: controller,
+      reduceMotion: true,
+    );
+
+    await tester.tap(find.text('SPIN'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    expect(find.byKey(const ValueKey('golden-cat-challenge')), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 701));
+    await tester.tap(find.byKey(const ValueKey('golden-cat-now')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('golden-cat-cash-out')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(controller.coins, 59);
+    expect(wallet.snapshot?.coins, 59);
+    await tester.tap(find.byKey(const ValueKey('return-from-golden-cat')));
+    await tester.pump();
+    expect(find.text('CAT SLOT'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

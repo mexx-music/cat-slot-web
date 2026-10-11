@@ -3,7 +3,7 @@ import '../models/slot_symbol.dart';
 import '../cat_slot_styles.dart';
 import 'mouse_art.dart';
 import '../data/bonus_games.dart';
-import 'cat_switch_art.dart';
+import 'golden_cat_art.dart';
 
 /// Zeigt ein einzelnes Slot-Symbol an.
 ///
@@ -27,11 +27,11 @@ class SymbolDisplay extends StatelessWidget {
         .toInt();
 
     if (symbol.isBonus) {
-      if (symbol.id == kCatSwitchBonusSymbolId) {
+      if (symbol.id == kGoldenCatBonusSymbolId) {
         return const SizedBox(
           width: s,
           height: s,
-          child: Center(child: CatSwitchSymbol(size: 68)),
+          child: Center(child: GoldenCatSymbol(size: 68)),
         );
       }
       return const SizedBox(

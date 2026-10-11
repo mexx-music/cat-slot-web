@@ -72,8 +72,8 @@ void main() {
       skipped: false,
     );
 
-    expect(controller.creditBonusOnce(session, result), isTrue);
-    expect(controller.creditBonusOnce(session, result), isFalse);
+    expect(await controller.creditBonusOnce(session, result), isTrue);
+    expect(await controller.creditBonusOnce(session, result), isFalse);
     expect(controller.coins, 99); // 10 - 1 + 90
   });
 
@@ -87,8 +87,8 @@ void main() {
     await controller.spin(() {});
     final session = controller.beginPendingBonus()!;
 
-    expect(
-      () => controller.creditBonusOnce(
+    await expectLater(
+      controller.creditBonusOnce(
         session,
         const BonusGameResult(
           normalCaught: 1,

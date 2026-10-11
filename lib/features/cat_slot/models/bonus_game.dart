@@ -35,16 +35,16 @@ class BonusGameResult {
   });
 }
 
-class CatSwitchResult {
-  final int correct;
-  final int roundsPlayed;
+class GoldenCatResult {
+  final int stageReached;
   final int coinsWon;
-  final bool skipped;
+  final bool cashedOut;
+  final bool missed;
 
-  const CatSwitchResult({
-    required this.correct,
-    required this.roundsPlayed,
+  const GoldenCatResult({
+    required this.stageReached,
     required this.coinsWon,
-    required this.skipped,
+    required this.cashedOut,
+    required this.missed,
   });
 }

@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'bonus/golden_cat_challenge.dart';
 import 'bonus/mouse_hunt_game.dart';
-import 'bonus/cat_switch_game.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
 import 'data/slot_symbol_sets.dart';
@@ -12,7 +12,7 @@ import 'data/bonus_games.dart';
 import 'models/bonus_game.dart';
 import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
-import 'services/cat_switch_system.dart';
+import 'services/golden_cat_system.dart';
 import 'widgets/balance_label.dart';
 import 'widgets/cat_mood_chip.dart';
 import 'widgets/coin_fly_overlay.dart';
@@ -78,7 +78,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
 
   bool get _isBigWin => _presentedWin >= CatSlotStyles.winTierBig;
 
-  List<String?> get _switchCatAssets => _activeSet.symbols
+  List<String?> get _goldenCatAssets => _activeSet.symbols
       .where((symbol) => !symbol.isBonus)
       .map((symbol) => symbol.assetPath)
       .take(2)
@@ -90,8 +90,9 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     _controller =
         widget.controller ??
         CatSlotController(
-          catSwitchPolicy: CatSwitchSymbolPolicy(),
+          goldenCatPolicy: GoldenCatSymbolPolicy(),
           progressStore: SharedPreferencesBonusProgressStore(),
+          walletStore: SharedPreferencesWalletStore(),
         );
     _displayCoins = _controller.coins;
     WidgetsBinding.instance.addObserver(this);
@@ -236,7 +237,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _catExcited = true;
       _catMessage = session.game.id == kMouseHuntGameId
           ? 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.'
-          : 'Bonuskatze komplett! Zeit für Cat Switch.';
+          : 'Drei Goldkatzen! Die Golden Cat Challenge beginnt.';
     });
     if (_lifecycleState != AppLifecycleState.resumed) {
       _bonusLaunchPending = true;
@@ -266,10 +267,10 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     });
   }
 
-  void _onBonusCompleted(BonusGameResult result) {
+  Future<void> _onBonusCompleted(BonusGameResult result) async {
     final session = _activeBonusSession;
     if (session == null) return;
-    final credited = _controller.creditBonusOnce(session, result);
+    final credited = await _controller.creditBonusOnce(session, result);
     if (!credited || !mounted) return;
     _audio.playCollectSound();
     HapticFeedback.mediumImpact();
@@ -280,17 +281,20 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     });
   }
 
-  void _onCatSwitchCompleted(CatSwitchResult result) {
+  Future<void> _onGoldenCatCompleted(GoldenCatResult result) async {
     final session = _activeBonusSession;
     if (session == null) return;
-    final credited = _controller.creditCatSwitchOnce(session, result);
+    final credited = await _controller.creditGoldenCatOnce(session, result);
     if (!credited || !mounted) return;
-    _audio.playCollectSound();
-    HapticFeedback.mediumImpact();
+    if (result.coinsWon > 0) {
+      _audio.playCollectSound();
+      HapticFeedback.mediumImpact();
+    }
     setState(() {
       _displayCoins = _controller.coins;
-      _catMessage =
-          'Cat Switch bringt ${result.coinsWon} PurrCoins ins Körbchen.';
+      _catMessage = result.coinsWon > 0
+          ? 'Golden Cat bringt ${result.coinsWon} PurrCoins ins Körbchen.'
+          : 'Die Goldkatze war schneller – dein Guthaben bleibt sicher.';
     });
   }
 
@@ -424,12 +428,13 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     }
   }
 
-  void _onReset() {
+  Future<void> _onReset() async {
     _smallWinTimer?.cancel();
     _bonusTransitionTimer?.cancel();
+    _finishWinPresentation();
+    await _controller.resetGame();
+    if (!mounted) return;
     setState(() {
-      _finishWinPresentation(notify: false);
-      _controller.resetGame();
       _activeBonusSession = null;
       _showBonusGame = false;
       _bonusTransitioning = false;
@@ -521,7 +526,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               border: Border.all(color: const Color(0x668CE4DC)),
             ),
             child: Text(
-              'BONUSKATZE  ${_controller.catSwitchProgress}/3',
+              'GOLDKATZE  ${_controller.goldenCatProgress}/3',
               style: const TextStyle(
                 color: Color(0xFFBFEDE8),
                 fontSize: 11,
@@ -755,18 +760,17 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               hunterSetId: _activeSet.id,
             ),
           ),
-        if (_showBonusGame && _activeBonusSession?.game.id == kCatSwitchGameId)
+        if (_showBonusGame && _activeBonusSession?.game.id == kGoldenCatGameId)
           Positioned.fill(
             child: Builder(
               builder: (context) {
-                final assets = _switchCatAssets;
-                return CatSwitchGame(
+                final assets = _goldenCatAssets;
+                return GoldenCatChallenge(
                   session: _activeBonusSession!,
-                  onRoundCompleted: _onCatSwitchCompleted,
+                  onRoundCompleted: _onGoldenCatCompleted,
                   onExit: _exitBonusGame,
                   reduceMotion: _reduceMotion,
-                  targetAssetPath: assets.isNotEmpty ? assets[0] : null,
-                  distractorAssetPath: assets.length > 1 ? assets[1] : null,
+                  catAssetPath: assets.isNotEmpty ? assets[0] : null,
                 );
               },
             ),
