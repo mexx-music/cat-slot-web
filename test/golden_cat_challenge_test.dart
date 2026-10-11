@@ -103,7 +103,11 @@ void main() {
     tester,
   ) async {
     final results = <GoldenCatResult>[];
-    await pumpGame(tester, onCompleted: (result) async => results.add(result));
+    await pumpGame(
+      tester,
+      size: const Size(320, 568),
+      onCompleted: (result) async => results.add(result),
+    );
     await tester.pump(const Duration(milliseconds: 701));
 
     final now = find.byKey(const ValueKey('golden-cat-now'));
@@ -151,7 +155,38 @@ void main() {
     }
   });
 
-  testWidgets('risk continues with faster stages and stage five auto-pays', (
+  testWidgets('level five offers 1000 coins or the level six risk', (
+    tester,
+  ) async {
+    final results = <GoldenCatResult>[];
+    await pumpGame(
+      tester,
+      size: const Size(320, 568),
+      onCompleted: (result) async => results.add(result),
+    );
+
+    for (var stage = 1; stage <= 5; stage++) {
+      await hitCurrentStage(tester, stage);
+      if (stage < 5) {
+        await tester.tap(find.byKey(const ValueKey('golden-cat-risk')));
+        await tester.pump();
+      }
+    }
+
+    expect(results, isEmpty);
+    expect(find.text('Treffer! Du hast 1000 Coins erreicht!'), findsOneWidget);
+    expect(find.text('1.000 NEHMEN'), findsOneWidget);
+    expect(find.text('LEVEL 6'), findsOneWidget);
+    expect(find.byKey(const ValueKey('golden-cat-cash-out')), findsOneWidget);
+    expect(find.byKey(const ValueKey('golden-cat-risk')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('golden-cat-cash-out')));
+    await tester.pump();
+    expect(results.single.stageReached, 5);
+    expect(results.single.coinsWon, 1000);
+  });
+
+  testWidgets('risk continues through six stages and level six auto-pays', (
     tester,
   ) async {
     final results = <GoldenCatResult>[];
@@ -162,14 +197,68 @@ void main() {
       if (stage < GoldenCatEconomy.stages) {
         await tester.tap(find.byKey(const ValueKey('golden-cat-risk')));
         await tester.pump();
-        expect(find.text('STUFE ${stage + 1}/5'), findsOneWidget);
+        expect(find.text('STUFE ${stage + 1}/6'), findsOneWidget);
       }
     }
 
     expect(results, hasLength(1));
-    expect(results.single.stageReached, 5);
-    expect(results.single.coinsWon, 1000);
+    expect(results.single.stageReached, 6);
+    expect(results.single.coinsWon, 2500);
     expect(find.byKey(const ValueKey('golden-cat-result')), findsOneWidget);
+  });
+
+  testWidgets('level six visibly switches at the configured 160ms boundary', (
+    tester,
+  ) async {
+    final results = <GoldenCatResult>[];
+    await pumpGame(
+      tester,
+      size: const Size(320, 568),
+      onCompleted: (result) async => results.add(result),
+    );
+
+    for (var stage = 1; stage <= 5; stage++) {
+      await hitCurrentStage(tester, stage);
+      await tester.tap(find.byKey(const ValueKey('golden-cat-risk')));
+      await tester.pump();
+    }
+
+    expect(find.text('STUFE 6/6'), findsOneWidget);
+    expect(find.text('×50'), findsOneWidget);
+    expect(find.text('2500 Coins'), findsOneWidget);
+    expect(find.byKey(const ValueKey('normal-cat-visible')), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 159));
+    expect(find.byKey(const ValueKey('normal-cat-visible')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2));
+    expect(find.byKey(const ValueKey('golden-cat-visible')), findsOneWidget);
+
+    final now = find.byKey(const ValueKey('golden-cat-now'));
+    await tester.tap(now);
+    await tester.tap(now);
+    await tester.pump();
+    expect(results, hasLength(1));
+    expect(results.single.stageReached, 6);
+    expect(results.single.coinsWon, 2500);
+  });
+
+  testWidgets('a level six miss loses only the unsecured bonus', (
+    tester,
+  ) async {
+    final results = <GoldenCatResult>[];
+    await pumpGame(tester, onCompleted: (result) async => results.add(result));
+
+    for (var stage = 1; stage <= 5; stage++) {
+      await hitCurrentStage(tester, stage);
+      await tester.tap(find.byKey(const ValueKey('golden-cat-risk')));
+      await tester.pump();
+    }
+    await tester.tap(find.byKey(const ValueKey('golden-cat-now')));
+    await tester.pump();
+
+    expect(results.single.stageReached, 6);
+    expect(results.single.coinsWon, 0);
+    expect(results.single.missed, isTrue);
   });
 
   testWidgets('app pause freezes and fairly restarts the same risk stage', (
@@ -203,6 +292,14 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('golden-cat-challenge')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('golden-cat-stage-progress')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('golden-cat-ladder-stage-6')),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);

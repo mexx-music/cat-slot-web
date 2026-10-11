@@ -61,10 +61,13 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Ein zentrales Katzenbild wechselt framegenau zwischen normaler und goldener
   Katze. Der große `JETZT!`-Button wertet exakt den vom Flutter-Ticker zuletzt
   gezeichneten Zustand aus; es gibt keine nachträgliche Zufallsentscheidung.
-- Nach einem Treffer kann der Spieler 50, 100, 250 oder 500 PurrCoins sichern
-  oder die nächste Stufe riskieren. Stufe fünf zahlt automatisch 1.000 aus.
-  Die Gesamtgewinne, Multiplikatoren und Intervalle 700/550/400/300/220 ms
-  liegen zentral in `GoldenCatEconomy`.
+- Nach einem Treffer kann der Spieler 50, 100, 250, 500 oder 1.000 PurrCoins
+  sichern oder die nächste Stufe riskieren. Nach Level 5 besteht ausdrücklich
+  die Wahl zwischen 1.000 Coins und Level 6. Ein Treffer in Level 6 zahlt
+  automatisch insgesamt 2.500 Coins aus.
+- Die sechs Multiplikatoren ×1/×2/×5/×10/×20/×50 und die tatsächlichen
+  Bildwechselintervalle 700/550/400/300/220/160 ms liegen zentral in
+  `GoldenCatEconomy`. Eine sechsteilige Leiste zeigt den Fortschritt.
 - Ein Fehltreffer verwirft nur den ungesicherten Bonus. Das bestehende Guthaben
   wird nie belastet. Doppeltaps zählen pro Stufe höchstens einmal.
 - Bei App-Pause friert die laufende Risikostufe ein und startet nach Rückkehr
@@ -74,10 +77,11 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   Standardset verwendet eine eigene Flutter-Illustration statt Emojis.
 - Die reproduzierbare 200.000-Spin-Simulation ergibt ungefähr eine Golden-Cat-
   Runde je 38 Spins (2,6 %) und Mouse Hunt weiterhin etwa je 25 Spins (4 %).
-- Bei zufälligem Timing und konsequentem Risiko beträgt der mathematische
-  Golden-Cat-Mittelwert 31,25 Coins je Challenge beziehungsweise rund 0,81 je
-  Spin. Ein geübter Spieler kann deutlich mehr erreichen; im theoretischen
-  perfekten Fall wären es 1.000 je Challenge bzw. rund 26 je Spin. Die
+- Bei zufälligem Timing und konsequentem Risiko über alle sechs Stufen beträgt
+  der mathematische Golden-Cat-Mittelwert 39,0625 Coins je Challenge
+  beziehungsweise rund 1,02 je Spin. Ein geübter Spieler kann deutlich mehr
+  erreichen; im theoretischen perfekten Fall wären es 2.500 je Challenge
+  beziehungsweise rund 65 Coins je Spin. Die
   Test-Gewinnleiter ist daher bewusst zentral konfigurierbar und vor einer
   Echtgeld- oder kompetitiven Nutzung neu zu balancieren.
 - Wenn Mouse Hunt und Golden Cat im selben Spin auslösen, wird Mouse Hunt

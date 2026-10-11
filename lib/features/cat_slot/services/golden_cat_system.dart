@@ -6,14 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 class GoldenCatEconomy {
   GoldenCatEconomy._();
 
-  static const List<int> multipliers = [1, 2, 5, 10, 20];
-  static const List<int> payouts = [50, 100, 250, 500, 1000];
+  static const List<int> multipliers = [1, 2, 5, 10, 20, 50];
+  static const List<int> payouts = [50, 100, 250, 500, 1000, 2500];
   static const List<Duration> switchIntervals = [
     Duration(milliseconds: 700),
     Duration(milliseconds: 550),
     Duration(milliseconds: 400),
     Duration(milliseconds: 300),
     Duration(milliseconds: 220),
+    Duration(milliseconds: 160),
   ];
 
   static int get stages => payouts.length;

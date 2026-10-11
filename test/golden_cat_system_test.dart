@@ -160,6 +160,22 @@ void main() {
     },
   );
 
+  test('level six payout is validated and credited exactly once', () async {
+    final controller = _controller(policy: GoldenCatSymbolPolicy.fixed(3));
+    await controller.spin(() {});
+    final session = controller.beginPendingBonus()!;
+    const result = GoldenCatResult(
+      stageReached: 6,
+      coinsWon: 2500,
+      cashedOut: true,
+      missed: false,
+    );
+
+    expect(await controller.creditGoldenCatOnce(session, result), isTrue);
+    expect(await controller.creditGoldenCatOnce(session, result), isFalse);
+    expect(controller.coins, 2509);
+  });
+
   test('miss records the transaction but never removes wallet coins', () async {
     final controller = _controller(policy: GoldenCatSymbolPolicy.fixed(3));
     await controller.spin(() {});
@@ -204,21 +220,21 @@ void main() {
     expect(goldenRate, inInclusiveRange(0.024, 0.028));
     expect(mouseRate, inInclusiveRange(0.038, 0.042));
 
-    // A random-timing player who always risks all five stages succeeds with
-    // probability 1/32: 31.25 coins per challenge, about 0.81 per spin.
-    const randomRiskExpectedPerChallenge = 1000 / 32;
+    // A random-timing player who always risks all six stages succeeds with
+    // probability 1/64: 39.0625 coins per challenge, about 1.02 per spin.
+    const randomRiskExpectedPerChallenge = 2500 / 64;
     expect(
       goldenRate * randomRiskExpectedPerChallenge,
-      inInclusiveRange(.75, .88),
+      inInclusiveRange(.95, 1.10),
     );
   });
 
   test('speed and prize ladder match the documented central configuration', () {
-    expect(GoldenCatEconomy.payouts, [50, 100, 250, 500, 1000]);
-    expect(GoldenCatEconomy.multipliers, [1, 2, 5, 10, 20]);
+    expect(GoldenCatEconomy.payouts, [50, 100, 250, 500, 1000, 2500]);
+    expect(GoldenCatEconomy.multipliers, [1, 2, 5, 10, 20, 50]);
     expect(
       GoldenCatEconomy.switchIntervals.map((value) => value.inMilliseconds),
-      [700, 550, 400, 300, 220],
+      [700, 550, 400, 300, 220, 160],
     );
   });
 }

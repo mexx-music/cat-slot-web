@@ -215,6 +215,8 @@ class _GoldenCatChallengeState extends State<GoldenCatChallenge>
           ),
           SizedBox(height: compact ? 8 : 14),
           _buildStageHeader(compact),
+          SizedBox(height: compact ? 5 : 8),
+          _buildStageProgress(compact),
           SizedBox(height: compact ? 7 : 12),
           Expanded(child: _buildCatField(compact)),
           SizedBox(height: compact ? 7 : 12),
@@ -264,6 +266,58 @@ class _GoldenCatChallengeState extends State<GoldenCatChallenge>
           '${GoldenCatEconomy.payoutForStage(_stage)} Coins',
           style: const TextStyle(color: Color(0xFFBFEDE8)),
         ),
+      ],
+    ),
+  );
+
+  Widget _buildStageProgress(bool compact) => Semantics(
+    label: 'Stufe $_stage von ${GoldenCatEconomy.stages}',
+    child: Row(
+      key: const ValueKey('golden-cat-stage-progress'),
+      children: [
+        for (var stage = 1; stage <= GoldenCatEconomy.stages; stage++) ...[
+          if (stage > 1) const SizedBox(width: 5),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: widget.reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  height: compact ? 6 : 8,
+                  decoration: BoxDecoration(
+                    color: stage < _stage
+                        ? const Color(0xFFFFE99A)
+                        : stage == _stage
+                        ? const Color(0xFFFFC83D)
+                        : const Color(0xFF45505C),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: stage == _stage
+                        ? const [
+                            BoxShadow(color: Color(0x88FFD65A), blurRadius: 8),
+                          ]
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${GoldenCatEconomy.payoutForStage(stage)}',
+                  key: ValueKey('golden-cat-ladder-stage-$stage'),
+                  style: TextStyle(
+                    color: stage == _stage
+                        ? const Color(0xFFFFE08A)
+                        : const Color(0xFF91A6AD),
+                    fontSize: compact ? 8 : 9,
+                    fontWeight: stage == _stage
+                        ? FontWeight.w900
+                        : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     ),
   );
@@ -346,7 +400,15 @@ class _GoldenCatChallengeState extends State<GoldenCatChallenge>
             child: FilledButton(
               key: const ValueKey('golden-cat-cash-out'),
               onPressed: _cashOut,
-              child: Text(compact ? 'NEHMEN' : 'GEWINN NEHMEN'),
+              child: Text(
+                _stage == 5
+                    ? compact
+                          ? '1.000 NEHMEN'
+                          : '1.000 COINS NEHMEN'
+                    : compact
+                    ? 'NEHMEN'
+                    : 'GEWINN NEHMEN',
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -354,7 +416,15 @@ class _GoldenCatChallengeState extends State<GoldenCatChallenge>
             child: OutlinedButton(
               key: const ValueKey('golden-cat-risk'),
               onPressed: _riskNextStage,
-              child: Text(compact ? 'RISKIEREN' : 'WEITER RISKIEREN'),
+              child: Text(
+                _stage == 5
+                    ? compact
+                          ? 'LEVEL 6'
+                          : 'LEVEL 6 RISKIEREN'
+                    : compact
+                    ? 'RISKIEREN'
+                    : 'WEITER RISKIEREN',
+              ),
             ),
           ),
         ],
