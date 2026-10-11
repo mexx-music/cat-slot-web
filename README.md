@@ -28,6 +28,16 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Die unabhängige Auslösechance beträgt 4 % pro Spin (im Mittel 1:25).
 - Mouse Hunt dauert 15 Sekunden und enthält elf ruhige Maus-Begegnungen,
   darunter genau eine goldene Maus.
+- Mouse Hunt 2.0 besitzt eine sichtbare Jagdkatze mit Idle-, Alert-, Pounce-,
+  Catch-, Miss- und Celebrate-Zuständen. Treffer werden erst am sichtbaren
+  Fangzeitpunkt gewertet; schnelle Mehrfachtaps sind während des Sprungs
+  gesperrt.
+- Katze, Mäuse, Pfotenstaub und Raumdekoration werden vollständig mit
+  Flutter-Zeichenoperationen erzeugt. Es wurden keine externen oder
+  urheberrechtlich fremden Grafikassets eingebunden.
+- `HunterCatAppearance` trennt Aussehen und Spielmechanik. Damit können
+  spätere Katzen-Sets eigene Farben und Accessoires liefern, ohne die
+  Mouse-Hunt-Logik zu verändern; Version 2.0 verwendet die Standardkatze.
 - Testwerte: 10 PurrCoins je normaler Maus, 50 für die goldene Maus und
   20 PurrCoins Teilnahmebonus. Maximal sind 170 PurrCoins pro Runde möglich.
 - Normale Katzen-Auszahlungen bleiben innerhalb der Nicht-Bonus-Spins
@@ -56,6 +66,7 @@ flutter build ios --simulator --debug --no-codesign
 ```
 
 Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout, den vollständigen
-Spin-Ablauf und Mouse Hunt einschließlich Überspringen und App-Unterbrechung.
+Spin-Ablauf und Mouse Hunt einschließlich Sprung/Fang-Synchronisierung,
+Fehlschlägen, schnellen Mehrfachtaps, Überspringen und App-Unterbrechung.
 Simulations- und Auszahlungstests sichern Bonusfrequenz und bestehende
 Gewinnwerte gegen unbeabsichtigte Änderungen ab.

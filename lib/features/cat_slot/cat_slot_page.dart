@@ -697,6 +697,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               onRoundCompleted: _onBonusCompleted,
               onExit: _exitBonusGame,
               reduceMotion: _reduceMotion,
+              hunterSetId: _activeSet.id,
             ),
           ),
       ],

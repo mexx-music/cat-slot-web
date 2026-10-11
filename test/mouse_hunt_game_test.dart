@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:catslot/features/cat_slot/bonus/mouse_hunt_game.dart';
 import 'package:catslot/features/cat_slot/data/bonus_games.dart';
 import 'package:catslot/features/cat_slot/models/bonus_game.dart';
+import 'package:catslot/features/cat_slot/widgets/hunt_cat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -95,5 +96,117 @@ void main() {
     expect(tester.takeException(), isNull);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+
+  testWidgets('cat prepares, pounces, catches and celebrates in sequence', (
+    tester,
+  ) async {
+    BonusGameResult? completed;
+    await pumpGame(
+      tester,
+      onCompleted: (result) => completed = result,
+      onExit: () {},
+    );
+
+    await tester.pump(const Duration(milliseconds: 360));
+    expect(
+      tester.widget<HuntCat>(find.byType(HuntCat)).state,
+      HuntCatState.alert,
+    );
+    final mouse = find.byKey(const ValueKey('mouse-target-0'));
+    await tester.tap(mouse);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final pouncingCat = tester.widget<HuntCat>(find.byType(HuntCat));
+    expect(pouncingCat.phase, greaterThan(0.16));
+    expect(pouncingCat.state, HuntCatState.pounce);
+    expect(mouse, findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      tester.widget<HuntCat>(find.byType(HuntCat)).state,
+      HuntCatState.catching,
+    );
+    expect(mouse, findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      tester.widget<HuntCat>(find.byType(HuntCat)).state,
+      HuntCatState.celebrate,
+    );
+    await tester.tap(find.byKey(const ValueKey('skip-mouse-hunt')));
+    await tester.pump();
+
+    expect(completed?.normalCaught, 1);
+    expect(completed?.coinsWon, 30);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rapid taps during a pounce cannot catch twice', (tester) async {
+    BonusGameResult? completed;
+    await pumpGame(
+      tester,
+      onCompleted: (result) => completed = result,
+      onExit: () {},
+    );
+
+    await tester.pump(const Duration(milliseconds: 360));
+    final mouse = find.byKey(const ValueKey('mouse-target-0'));
+    await tester.tap(mouse);
+    await tester.tap(mouse);
+    await tester.tapAt(
+      tester.getTopLeft(find.byKey(const ValueKey('mouse-hunt-scene'))) +
+          const Offset(20, 20),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.tap(find.byKey(const ValueKey('skip-mouse-hunt')));
+    await tester.pump();
+
+    expect(completed?.normalCaught, 1);
+    expect(completed?.goldenCaught, 0);
+    expect(completed?.coinsWon, 30);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a missed tap produces the humorous miss state without reward', (
+    tester,
+  ) async {
+    BonusGameResult? completed;
+    await pumpGame(
+      tester,
+      size: const Size(320, 568),
+      onCompleted: (result) => completed = result,
+      onExit: () {},
+    );
+
+    await tester.pump(const Duration(milliseconds: 360));
+    final scene = find.byKey(const ValueKey('mouse-hunt-scene'));
+    await tester.tapAt(tester.getBottomLeft(scene) + const Offset(14, -14));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 560));
+
+    expect(
+      tester.widget<HuntCat>(find.byType(HuntCat)).state,
+      HuntCatState.miss,
+    );
+    await tester.tap(find.byKey(const ValueKey('skip-mouse-hunt')));
+    await tester.pump();
+    expect(completed?.normalCaught, 0);
+    expect(completed?.goldenCaught, 0);
+    expect(completed?.coinsWon, 20);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('hunter appearance is ready for future symbol sets', () {
+    expect(
+      HunterCatAppearance.forSymbolSetId('santa_cats').accessory,
+      HuntCatAccessory.santaHat,
+    );
+    expect(
+      HunterCatAppearance.forSymbolSetId('unknown').sourceSetId,
+      'standard',
+    );
   });
 }
