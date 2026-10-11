@@ -1,25 +1,21 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../cat_slot_styles.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PHASE 1 – WIN REVEAL BURST
-//
-// Kurzer, knackiger Pop über der Gewinnreihe. Ergänzt die existierende
-// per-Reel-Center-Pulse mit einem expandierenden Gold-Ring und einem
-// horizontalen Shine-Sweep über die Mittelreihe.
-//
-// Wird positioniert direkt in den Reel-Stack, deckt die Mittelreihe ab.
-// ─────────────────────────────────────────────────────────────────────────────
-
+/// A short light sweep with tiny paw glints over the winning row.
 class WinRevealBurst extends StatefulWidget {
-  /// Sichtbarkeit – steuert Start/Stop der einmaligen Reveal-Animation.
   final bool visible;
+  final bool reduceMotion;
+  final bool bigWin;
 
-  const WinRevealBurst({super.key, required this.visible});
+  const WinRevealBurst({
+    super.key,
+    required this.visible,
+    this.reduceMotion = false,
+    this.bigWin = false,
+  });
 
   @override
   State<WinRevealBurst> createState() => _WinRevealBurstState();
@@ -27,639 +23,437 @@ class WinRevealBurst extends StatefulWidget {
 
 class _WinRevealBurstState extends State<WinRevealBurst>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _t;
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
+    _controller = AnimationController(
       vsync: this,
       duration: CatSlotStyles.winRevealDuration,
     );
-    _t = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-    if (widget.visible) _ctrl.forward(from: 0);
+    if (widget.visible && !widget.reduceMotion) _controller.forward();
   }
 
   @override
-  void didUpdateWidget(WinRevealBurst old) {
-    super.didUpdateWidget(old);
-    if (widget.visible && !old.visible) {
-      _ctrl.forward(from: 0);
-    } else if (!widget.visible && old.visible) {
-      _ctrl.stop();
-      _ctrl.reset();
+  void didUpdateWidget(WinRevealBurst oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reduceMotion) {
+      _controller
+        ..stop()
+        ..value = widget.visible ? 1 : 0;
+    } else if (widget.visible && !oldWidget.visible) {
+      _controller.forward(from: 0);
+    } else if (!widget.visible && oldWidget.visible) {
+      _controller
+        ..stop()
+        ..reset();
     }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Position: zentriert über der mittleren Symbol-Reihe.
+    if (!widget.visible || widget.reduceMotion) {
+      return const SizedBox.expand();
+    }
     return IgnorePointer(
-      child: SizedBox(
-        width: CatSlotStyles.reelRowWidth,
-        height: CatSlotStyles.reelWindowHeight,
+      child: RepaintBoundary(
         child: AnimatedBuilder(
-          animation: _t,
-          builder: (_, __) {
-            final t = _t.value;
-            if (t == 0.0 || t == 1.0 && !widget.visible) {
-              return const SizedBox.shrink();
-            }
-            return Stack(
-              children: [
-                // ── Expandierender Gold-Ring ────────────────────────────
-                Positioned(
-                  top: CatSlotStyles.reelSymbolSize,
-                  left: 0,
-                  right: 0,
-                  height: CatSlotStyles.reelSymbolSize,
-                  child: Center(child: _ExpandingRing(progress: t)),
-                ),
-                // ── Horizontaler Shine-Sweep über der Mittelreihe ────────
-                Positioned(
-                  top: CatSlotStyles.reelSymbolSize,
-                  left: 0,
-                  right: 0,
-                  height: CatSlotStyles.reelSymbolSize,
-                  child: ClipRect(
-                    child: CustomPaint(painter: _SweepPainter(progress: t)),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _ExpandingRing extends StatelessWidget {
-  final double progress; // 0..1
-
-  const _ExpandingRing({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    // Ring wächst von 0 auf eine Größe ≈ Win-Reihen-Breite
-    final maxSize = CatSlotStyles.reelRowWidth * 0.75;
-    final size = maxSize * progress;
-    // Fade-Out gegen Ende
-    final opacity = (1.0 - progress).clamp(0.0, 1.0);
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: CatSlotStyles.winLineColor.withValues(alpha: 0.85),
-            width: 2.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: CatSlotStyles.winLineColor.withValues(alpha: 0.55),
-              blurRadius: 28,
-              spreadRadius: 4,
+          animation: _controller,
+          builder: (_, __) => CustomPaint(
+            painter: _WinRevealPainter(
+              progress: _controller.value,
+              bigWin: widget.bigWin,
             ),
-          ],
+            size: Size.infinite,
+          ),
         ),
       ),
     );
   }
 }
 
-class _SweepPainter extends CustomPainter {
-  final double progress; // 0..1
-  _SweepPainter({required this.progress});
+class _WinRevealPainter extends CustomPainter {
+  final double progress;
+  final bool bigWin;
+
+  const _WinRevealPainter({required this.progress, required this.bigWin});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Sweep nur in der ersten Hälfte sichtbar, dann ausgeblendet
-    final localT = (progress / 0.6).clamp(0.0, 1.0);
-    final fade = (1.0 - (progress - 0.4).clamp(0.0, 1.0) / 0.6).clamp(0.0, 1.0);
-    if (fade <= 0.0) return;
-    final bandWidth = size.width * 0.22;
-    final cx = -bandWidth + (size.width + bandWidth * 2) * localT;
-    final rect = Rect.fromLTWH(cx - bandWidth / 2, 0, bandWidth, size.height);
+    final row = Rect.fromLTWH(
+      0,
+      CatSlotStyles.reelSymbolSize,
+      size.width,
+      CatSlotStyles.reelSymbolSize,
+    );
+    final fade = sin(progress * pi).clamp(0.0, 1.0);
+    final bandWidth = size.width * 0.26;
+    final x = -bandWidth + (size.width + bandWidth * 2) * progress;
+    final sweep = Rect.fromLTWH(
+      x - bandWidth / 2,
+      row.top,
+      bandWidth,
+      row.height,
+    );
+    canvas.save();
+    canvas.clipRect(row);
+    canvas.drawRect(
+      sweep,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Colors.transparent,
+            CatSlotStyles.winGoldLight.withValues(alpha: fade * 0.42),
+            Colors.transparent,
+          ],
+        ).createShader(sweep),
+    );
+    canvas.restore();
+
+    const pawFractions = [0.22, 0.5, 0.78];
+    for (var i = 0; i < pawFractions.length; i++) {
+      final local = ((progress - i * 0.08) / 0.78).clamp(0.0, 1.0);
+      if (local <= 0 || local >= 1) continue;
+      final alpha = sin(local * pi) * (bigWin ? 0.62 : 0.42);
+      final center = Offset(
+        size.width * pawFractions[i],
+        row.center.dy - sin(local * pi) * (10 + i * 3),
+      );
+      _drawPaw(canvas, center, 4.2 + (bigWin ? 1.4 : 0), alpha);
+    }
+  }
+
+  void _drawPaw(Canvas canvas, Offset center, double radius, double opacity) {
     final paint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [
-          Colors.transparent,
-          CatSlotStyles.winGoldLight.withValues(alpha: 0.55 * fade),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(rect);
-    canvas.drawRect(rect, paint);
+      ..color = CatSlotStyles.winGoldLight.withValues(alpha: opacity);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + radius * 0.25),
+        width: radius * 1.6,
+        height: radius * 1.25,
+      ),
+      paint,
+    );
+    for (var i = 0; i < 3; i++) {
+      canvas.drawCircle(
+        Offset(center.dx + (i - 1) * radius * 0.7, center.dy - radius * 0.75),
+        radius * 0.34,
+        paint,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(_SweepPainter old) => old.progress != progress;
+  bool shouldRepaint(_WinRevealPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.bigWin != bigWin;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PHASE 2 – LUXUS WIN-PANEL
-//
-// Mehrstufiges, hochwertiges Overlay. Sequenz intern gesteuert:
-//   1. Dimmer fadet ein                          (200ms)
-//   2. Phase-1-Dwell: Reel-Pulse + Burst wirken  (winPhase1Dwell)
-//   3. Rays + Glow starten, Panel skaliert ein   (600ms entry)
-//   4. Counter tickt von 0 → coinsWon            (winCounterDuration)
-//   5. COLLECT-Button bleibt am unteren Ende     (jederzeit klickbar nach Panel-Entry)
-// ─────────────────────────────────────────────────────────────────────────────
+/// Inline feedback for the common 3/4 coin wins. It never blocks another spin.
+class SmallWinChip extends StatelessWidget {
+  final bool visible;
+  final int coinsWon;
+  final bool reduceMotion;
 
+  const SmallWinChip({
+    super.key,
+    required this.visible,
+    required this.coinsWon,
+    this.reduceMotion = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.96, end: 1.0).animate(animation),
+          child: child,
+        ),
+      ),
+      child: visible
+          ? Semantics(
+              key: const ValueKey('small-win-chip'),
+              liveRegion: true,
+              label: '$coinsWon PurrCoins gewonnen',
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xD923183A),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0x99F4D77C)),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x332FD1C6), blurRadius: 18),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🐾', style: TextStyle(fontSize: 15)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '+$coinsWon PURRCOINS',
+                        style: const TextStyle(
+                          color: CatSlotStyles.winGoldLight,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Schnurr!',
+                        style: TextStyle(
+                          color: Color(0xFF9FE7E0),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox(key: ValueKey('small-win-chip-hidden'), height: 0),
+    );
+  }
+}
+
+/// Compact reward panel reserved for 5+ coin wins.
+/// The button is available immediately and therefore also acts as skip.
 class WinPanel extends StatefulWidget {
   final bool visible;
   final int coinsWon;
   final VoidCallback onCollect;
+  final bool reduceMotion;
 
   const WinPanel({
     super.key,
     required this.visible,
     required this.coinsWon,
     required this.onCollect,
+    this.reduceMotion = false,
   });
 
   @override
   State<WinPanel> createState() => _WinPanelState();
 }
 
-class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
-  // Dimmer
-  late final AnimationController _dimCtrl;
-  // Panel-Entry (scale + fade)
-  late final AnimationController _entryCtrl;
-  late final Animation<double> _entryFade;
-  late final Animation<double> _entryScale;
-  // Endless: Rays + Glow + Sparkles
-  late final AnimationController _raysCtrl;
-  late final AnimationController _glowCtrl;
-  late final AnimationController _sparkleCtrl;
-  // Counter
-  late final AnimationController _counterCtrl;
-
-  Timer? _phase2Timer;
-  bool _panelEntered = false;
+class _WinPanelState extends State<WinPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
-
-    _dimCtrl = AnimationController(
+    _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: widget.reduceMotion
+          ? Duration.zero
+          : CatSlotStyles.winPanelDuration,
     );
-    _entryCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 620),
-    );
-    _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
-    _entryScale = Tween<double>(
-      begin: 0.6,
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _scale = Tween(
+      begin: 0.94,
       end: 1.0,
-    ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut));
-    _raysCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    );
-    _glowCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    _sparkleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    );
-    _counterCtrl = AnimationController(
-      vsync: this,
-      duration: CatSlotStyles.winCounterDuration,
-    );
-
-    if (widget.visible) _startSequence();
-  }
-
-  void _startSequence() {
-    _dimCtrl.forward(from: 0);
-    _phase2Timer?.cancel();
-    _phase2Timer = Timer(CatSlotStyles.winPhase1Dwell, () {
-      if (!mounted) return;
-      setState(() => _panelEntered = true);
-      _entryCtrl.forward(from: 0);
-      _raysCtrl.repeat();
-      _glowCtrl.repeat(reverse: true);
-      _sparkleCtrl.repeat();
-      _counterCtrl.forward(from: 0);
-    });
-  }
-
-  void _stopSequence() {
-    _phase2Timer?.cancel();
-    _raysCtrl.stop();
-    _glowCtrl.stop();
-    _sparkleCtrl.stop();
-    _counterCtrl.stop();
-    _entryCtrl.reverse();
-    _dimCtrl.reverse();
-    _panelEntered = false;
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    if (widget.visible) _controller.forward();
   }
 
   @override
-  void didUpdateWidget(WinPanel old) {
-    super.didUpdateWidget(old);
-    if (widget.visible && !old.visible) {
-      _startSequence();
-    } else if (!widget.visible && old.visible) {
-      _stopSequence();
+  void didUpdateWidget(WinPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _controller.duration = widget.reduceMotion
+        ? Duration.zero
+        : CatSlotStyles.winPanelDuration;
+    if (widget.visible && !oldWidget.visible) {
+      _controller.forward(from: 0);
+    } else if (!widget.visible && oldWidget.visible) {
+      _controller.reverse();
     }
   }
 
   @override
   void dispose() {
-    _phase2Timer?.cancel();
-    _dimCtrl.dispose();
-    _entryCtrl.dispose();
-    _raysCtrl.dispose();
-    _glowCtrl.dispose();
-    _sparkleCtrl.dispose();
-    _counterCtrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  String _tierLabel() {
-    if (widget.coinsWon >= CatSlotStyles.winTierMega) return 'MEGA WIN!';
-    if (widget.coinsWon >= CatSlotStyles.winTierBig) return 'BIG WIN!';
-    return 'YOU WIN!';
-  }
-
-  double _tierFontSize() {
-    if (widget.coinsWon >= CatSlotStyles.winTierMega) return 56;
-    if (widget.coinsWon >= CatSlotStyles.winTierBig) return 48;
-    return 42;
-  }
+  String get _title => widget.coinsWon >= CatSlotStyles.winTierMega
+      ? 'CAT-TASTIC!'
+      : 'PURRFECT!';
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
       ignoring: !widget.visible,
-      child: AnimatedBuilder(
-        animation: _dimCtrl,
-        builder: (_, __) {
-          final dim = _dimCtrl.value;
-          // Während Phase-1-Dwell ist das Panel selbst noch nicht da –
-          // nur ein sanfter Dimmer liegt über dem Spiel.
-          return Container(
-            color: Color.fromRGBO(10, 6, 28, 0.55 * dim),
-            child: !_panelEntered
-                ? const SizedBox.expand()
-                : Center(
-                    child: FadeTransition(
-                      opacity: _entryFade,
-                      child: ScaleTransition(
-                        scale: _entryScale,
-                        child: _buildPanel(context),
-                      ),
-                    ),
-                  ),
-          );
-        },
+      child: FadeTransition(
+        opacity: _fade,
+        child: ColoredBox(
+          color: const Color(0x99080516),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: ScaleTransition(
+                scale: _scale,
+                child: RepaintBoundary(child: _buildCard()),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildPanel(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // ── Rotierende radiale Strahlen hinter dem Panel ─────────
-        SizedBox(
-          width: 480,
-          height: 480,
-          child: AnimatedBuilder(
-            animation: _raysCtrl,
-            builder: (_, __) => CustomPaint(
-              painter: _RaysPainter(angle: _raysCtrl.value * 2 * pi),
+  Widget _buildCard() {
+    return Semantics(
+      key: const ValueKey('big-win-panel'),
+      liveRegion: true,
+      label: '${widget.coinsWon} PurrCoins gewonnen',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 370),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF342052), Color(0xFF17102B)],
             ),
-          ),
-        ),
-        // ── Sparkles ──────────────────────────────────────────────
-        SizedBox(
-          width: 420,
-          height: 420,
-          child: AnimatedBuilder(
-            animation: _sparkleCtrl,
-            builder: (_, __) =>
-                CustomPaint(painter: _SparklesPainter(t: _sparkleCtrl.value)),
-          ),
-        ),
-        // ── Panel-Karte ───────────────────────────────────────────
-        AnimatedBuilder(
-          animation: _glowCtrl,
-          builder: (_, child) {
-            final g = Curves.easeInOut.transform(_glowCtrl.value);
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 26),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF26104A), Color(0xFF14072E)],
-                ),
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(
-                  color: CatSlotStyles.winLineColor,
-                  width: 2.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: CatSlotStyles.winLineColor.withValues(
-                      alpha: 0.55 + g * 0.30,
-                    ),
-                    blurRadius: 50 + g * 30,
-                    spreadRadius: 6 + g * 6,
-                  ),
-                  BoxShadow(
-                    color: CatSlotStyles.winLineColor.withValues(
-                      alpha: 0.20 + g * 0.10,
-                    ),
-                    blurRadius: 140,
-                    spreadRadius: 24,
-                  ),
-                ],
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: const Color(0xBFF4D77C), width: 1.5),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x6643D6CB),
+                blurRadius: 42,
+                spreadRadius: -8,
               ),
-              child: child,
-            );
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Tier-Titel (WIN / BIG WIN / MEGA WIN) ────────────
-              _TitleText(text: _tierLabel(), fontSize: _tierFontSize()),
-              const SizedBox(height: 14),
-              // ── Star: Counter-Betrag ─────────────────────────────
-              AnimatedBuilder(
-                animation: _counterCtrl,
-                builder: (_, __) {
-                  final eased = Curves.easeOut.transform(_counterCtrl.value);
-                  final shown = (eased * widget.coinsWon).round();
-                  return _AmountText(amount: shown);
-                },
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'PURRCOINS',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 6,
-                  color: Color(0xFFE8D27A),
-                ),
-              ),
-              const SizedBox(height: 22),
-              // ── COLLECT-Button (mit Reward-Bezug) ────────────────
-              ElevatedButton(
-                onPressed: widget.onCollect,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: CatSlotStyles.winLineColor,
-                  foregroundColor: const Color(0xFF1A0A3B),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 38,
-                    vertical: 14,
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text('COLLECT +${widget.coinsWon}'),
+              BoxShadow(
+                color: Color(0x66000000),
+                blurRadius: 32,
+                offset: Offset(0, 16),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Tier-Titel mit Gold-Gradient + Glow ─────────────────────────────────────
-
-class _TitleText extends StatelessWidget {
-  final String text;
-  final double fontSize;
-
-  const _TitleText({required this.text, required this.fontSize});
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (rect) => const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          CatSlotStyles.winGoldLight,
-          CatSlotStyles.winLineColor,
-          CatSlotStyles.winGoldDeep,
-        ],
-        stops: [0.0, 0.55, 1.0],
-      ).createShader(rect),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 4,
-          color: Colors.white, // wird durch ShaderMask überlagert
-          shadows: [
-            Shadow(
-              color: CatSlotStyles.winLineColor.withValues(alpha: 1.0),
-              blurRadius: 26,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(26, 22, 26, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0x332FD1C6),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0x667ADDD5)),
+                  ),
+                  child: Text(
+                    widget.coinsWon >= CatSlotStyles.winTierMega ? '😻' : '😸',
+                    style: const TextStyle(fontSize: 34),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _title,
+                  style: const TextStyle(
+                    color: CatSlotStyles.winGoldLight,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.2,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Die Katzen feiern ganz leise.',
+                  style: TextStyle(color: Color(0xFFB8DDD9), fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                AnimatedBuilder(
+                  animation: _controller,
+                  builder: (_, __) {
+                    final counterProgress = widget.reduceMotion
+                        ? 1.0
+                        : const Interval(
+                            0.18,
+                            1,
+                            curve: Curves.easeOutCubic,
+                          ).transform(_controller.value);
+                    return Text(
+                      '+${(widget.coinsWon * counterProgress).round()}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 58,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(color: Color(0x99F4D77C), blurRadius: 22),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const Text(
+                  'PURRCOINS',
+                  style: TextStyle(
+                    color: Color(0xFFD9C475),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: widget.onCollect,
+                    icon: const Text('🐾', style: TextStyle(fontSize: 16)),
+                    label: const Text('WEITER'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1D77A),
+                      foregroundColor: const Color(0xFF211333),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Gewinn bereits gutgeschrieben',
+                  style: TextStyle(color: Color(0x88FFFFFF), fontSize: 10),
+                ),
+              ],
             ),
-            Shadow(
-              color: CatSlotStyles.winLineColor.withValues(alpha: 0.55),
-              blurRadius: 60,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
-
-// ── Großer Betrag (der eigentliche Star) ────────────────────────────────────
-
-class _AmountText extends StatelessWidget {
-  final int amount;
-
-  const _AmountText({required this.amount});
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (rect) => const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white,
-          CatSlotStyles.winGoldLight,
-          CatSlotStyles.winLineColor,
-        ],
-      ).createShader(rect),
-      child: Text(
-        '+$amount',
-        style: TextStyle(
-          fontSize: 76,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1,
-          color: Colors.white,
-          height: 1.0,
-          shadows: [
-            Shadow(
-              color: CatSlotStyles.winLineColor.withValues(alpha: 0.95),
-              blurRadius: 30,
-            ),
-            Shadow(
-              color: CatSlotStyles.winLineColor.withValues(alpha: 0.5),
-              blurRadius: 70,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Rotierende Strahlen hinter dem Panel ────────────────────────────────────
-
-class _RaysPainter extends CustomPainter {
-  final double angle;
-  _RaysPainter({required this.angle});
-
-  static const int _rayCount = 16;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.shortestSide / 2;
-
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.rotate(angle);
-
-    final paint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          CatSlotStyles.winLineColor.withValues(alpha: 0.35),
-          CatSlotStyles.winLineColor.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 1.0],
-      ).createShader(Rect.fromCircle(center: Offset.zero, radius: r));
-
-    final step = (2 * pi) / _rayCount;
-    final half = step * 0.22; // schmale Strahlen mit viel Luft dazwischen
-    for (int i = 0; i < _rayCount; i++) {
-      final a = i * step;
-      final path = Path()
-        ..moveTo(0, 0)
-        ..lineTo(cos(a - half) * r, sin(a - half) * r)
-        ..lineTo(cos(a + half) * r, sin(a + half) * r)
-        ..close();
-      canvas.drawPath(path, paint);
-    }
-
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_RaysPainter old) => old.angle != angle;
-}
-
-// ── Sparkle-Partikel rund um das Panel ──────────────────────────────────────
-
-class _SparklesPainter extends CustomPainter {
-  final double t; // 0..1 loop
-  _SparklesPainter({required this.t});
-
-  // Fixe Pseudo-Random-Sparkle-Definitionen (deterministisch, kein Jitter)
-  static final List<_Sparkle> _sparkles = List.generate(14, (i) {
-    final rng = Random(i * 13 + 7);
-    return _Sparkle(
-      angle: rng.nextDouble() * 2 * pi,
-      radiusFrac: 0.55 + rng.nextDouble() * 0.45, // 0.55..1.0
-      sizePx: 4.0 + rng.nextDouble() * 6.0,
-      phase: rng.nextDouble(),
-      speed: 0.7 + rng.nextDouble() * 0.8,
-    );
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final maxR = size.shortestSide / 2;
-
-    for (final s in _sparkles) {
-      final localT = (t * s.speed + s.phase) % 1.0;
-      // Sägezahn-artiger Sparkle: schnell auf, langsamer ab
-      final opacity = localT < 0.3
-          ? (localT / 0.3)
-          : (1.0 - (localT - 0.3) / 0.7);
-      final scale =
-          0.5 + (1.0 - (localT - 0.5).abs() * 2).clamp(0.0, 1.0) * 0.6;
-      final size = s.sizePx * scale;
-      final r = maxR * s.radiusFrac;
-      final pos = Offset(cx + cos(s.angle) * r, cy + sin(s.angle) * r);
-      final paint = Paint()
-        ..color = CatSlotStyles.winGoldLight.withValues(
-          alpha: opacity.clamp(0.0, 1.0),
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-      // 4-strahliger Stern
-      final path = Path()
-        ..moveTo(pos.dx, pos.dy - size)
-        ..lineTo(pos.dx + size * 0.25, pos.dy - size * 0.25)
-        ..lineTo(pos.dx + size, pos.dy)
-        ..lineTo(pos.dx + size * 0.25, pos.dy + size * 0.25)
-        ..lineTo(pos.dx, pos.dy + size)
-        ..lineTo(pos.dx - size * 0.25, pos.dy + size * 0.25)
-        ..lineTo(pos.dx - size, pos.dy)
-        ..lineTo(pos.dx - size * 0.25, pos.dy - size * 0.25)
-        ..close();
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SparklesPainter old) => old.t != t;
-}
-
-class _Sparkle {
-  final double angle;
-  final double radiusFrac;
-  final double sizePx;
-  final double phase;
-  final double speed;
-
-  const _Sparkle({
-    required this.angle,
-    required this.radiusFrac,
-    required this.sizePx,
-    required this.phase,
-    required this.speed,
-  });
 }

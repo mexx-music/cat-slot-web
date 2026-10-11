@@ -205,15 +205,19 @@ class AudioService {
 
   // ── Win-Sound ────────────────────────────────────────────────
 
-  void playWinSound() {
+  void playWinSound({bool big = false}) {
     final ctx = _safe;
     if (ctx == null) return;
     stopPurrLoop();
-    const freqs = [523.25, 659.25, 783.99, 1046.5];
-    const vols = [0.22, 0.20, 0.18, 0.25];
+    final freqs = big
+        ? const [523.25, 659.25, 783.99, 1046.5]
+        : const [523.25, 659.25, 783.99];
+    final vols = big
+        ? const [0.20, 0.18, 0.17, 0.22]
+        : const [0.14, 0.12, 0.15];
     final t = _now;
     for (int i = 0; i < freqs.length; i++) {
-      _chime(ctx, freqs[i], vols[i], t + i * 0.12, dur: 0.38);
+      _chime(ctx, freqs[i], vols[i], t + i * 0.11, dur: big ? 0.38 : 0.28);
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'cat_slot_controller.dart';
@@ -17,23 +19,28 @@ import 'widgets/symbol_set_selector.dart';
 import 'widgets/win_effect_overlay.dart';
 
 class CatSlotPage extends StatefulWidget {
-  const CatSlotPage({super.key});
+  final CatSlotController? controller;
+
+  const CatSlotPage({super.key, this.controller});
 
   @override
   State<CatSlotPage> createState() => _CatSlotPageState();
 }
 
-class _CatSlotPageState extends State<CatSlotPage> {
-  final CatSlotController _controller = CatSlotController();
+class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
+  late final CatSlotController _controller;
   final AudioService _audio = AudioService();
 
-  bool _showWinOverlay = false;
-  bool _winCollected = true;
+  bool _showBigWinPanel = false;
+  bool _showSmallWinChip = false;
+  bool _showWinHighlight = false;
   bool _showCoinFly = false;
+  bool _visualBalanceActive = false;
+  bool _spinRequestActive = false;
 
-  // Visual coin counter: increments per arriving coin during fly animation
+  // Visual counter only. The controller balance is already settled.
   int _displayCoins = 0;
-  int _coinFlyPendingWin = 0;
+  int _presentedWin = 0;
   int _quipIndex = 0;
   String _catMessage = 'Die Katzen machen sich bereit.';
   bool _catExcited = false;
@@ -43,20 +50,46 @@ class _CatSlotPageState extends State<CatSlotPage> {
 
   // GlobalKeys zum Ermitteln der Screen-Positionen
   final GlobalKey _balanceKey = GlobalKey();
+  final GlobalKey _reelKey = GlobalKey();
 
   // Ermittelte Positionen für die Coin-Animation
   Offset _coinStart = Offset.zero;
   Offset _coinTarget = Offset.zero;
 
-  // Stabiler Key für CoinFlyOverlay – wird einmalig in _onCollect() gesetzt,
-  // damit Page-Rebuilds (z. B. aus _onCoinArrived) den Key NICHT erneut
-  // erzeugen und das laufende Overlay nicht zerstören.
+  // Stable for one transfer so counter rebuilds do not restart the flight.
   Key _coinFlyKey = const ValueKey('coin-fly-initial');
+  Timer? _smallWinTimer;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+  bool get _isBigWin => _presentedWin >= CatSlotStyles.winTierBig;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = widget.controller ?? CatSlotController();
+    _displayCoins = _controller.coins;
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _smallWinTimer?.cancel();
     _audio.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
+    if (state != AppLifecycleState.resumed) _audio.stopPurrLoop();
+    if (state != AppLifecycleState.resumed &&
+        (_showBigWinPanel || _showSmallWinChip || _showCoinFly)) {
+      _finishWinPresentation();
+    }
   }
 
   /// Wechselt das aktive Symbol-Set und baut die Rollen neu auf.
@@ -72,46 +105,75 @@ class _CatSlotPageState extends State<CatSlotPage> {
       kActiveSymbolSet = set;
       _activeSet = set;
       _controller.refreshReels();
-      // Gewinn-Zustand zurücksetzen damit kein veraltetes Highlighting bleibt
-      _winCollected = true;
-      _showWinOverlay = false;
+      _finishWinPresentation(notify: false);
       _catMessage = '${set.label}: neue Katzen, gleiches Glück.';
       _catExcited = false;
     });
   }
 
   Future<void> _onSpin() async {
+    if (_spinRequestActive || _controller.isSpinning) return;
+    setState(() => _spinRequestActive = true);
+    // A new spin is an intentional skip for any remaining visual-only reward
+    // transfer. The already settled balance cannot be credited twice.
+    _finishWinPresentation();
     HapticFeedback.lightImpact();
-    await _audio.ensureUnlockedAndPreload(); // iOS: Preload beim ersten Tap
-    _audio.playSpinSound(); // startet Purr-Loop
-    setState(() {
-      _winCollected = true;
-      _catExcited = false;
-      _catMessage = 'Pfoten weg vom Hebel … jetzt wird geschnurrt!';
-    });
-    await _controller.spin(
-      _refresh,
-      onReelStop: (i) {
-        _audio.playReelStopSound(i);
-        HapticFeedback.selectionClick();
-      },
-    );
-    _audio.stopPurrLoop(); // Purr immer stoppen nach Spin-Ende
-    if (!mounted) return;
-    if (_controller.pendingWin > 0) {
-      HapticFeedback.mediumImpact();
-      _audio.playWinSound();
+    try {
+      await _audio.ensureUnlockedAndPreload(); // iOS: preload on first tap
+      if (!mounted) return;
+      _audio.playSpinSound();
       setState(() {
-        _showWinOverlay = true;
-        _winCollected = false;
-        _catExcited = true;
-        _catMessage = 'Miau-nificent! Drei Katzen sind sich endlich einig.';
-      });
-    } else {
-      setState(() {
+        _showWinHighlight = false;
         _catExcited = false;
-        _catMessage = _nextConsolationMessage();
+        _catMessage = 'Pfoten weg vom Hebel … jetzt wird geschnurrt!';
       });
+      await _controller.spin(
+        _refresh,
+        onReelStop: (i) {
+          _audio.playReelStopSound(i);
+          HapticFeedback.selectionClick();
+        },
+        onWinSettled: (win) {
+          _presentedWin = win;
+          _displayCoins = _controller.coins - win;
+          _visualBalanceActive = true;
+        },
+      );
+      _audio.stopPurrLoop();
+      if (!mounted) return;
+      if (_lifecycleState != AppLifecycleState.resumed) {
+        _finishWinPresentation();
+        return;
+      }
+      if (_controller.latestWin > 0) {
+        final bigWin = _isBigWin;
+        if (_presentedWin >= CatSlotStyles.winTierMega) {
+          HapticFeedback.heavyImpact();
+        } else if (bigWin) {
+          HapticFeedback.mediumImpact();
+        } else {
+          HapticFeedback.lightImpact();
+        }
+        _audio.playWinSound(big: bigWin);
+        setState(() {
+          _showWinHighlight = true;
+          _showBigWinPanel = bigWin;
+          _showSmallWinChip = !bigWin;
+          _catExcited = true;
+          _catMessage = bigWin
+              ? 'Miau-nificent! Die Pfotenjury ist begeistert.'
+              : 'Schnurr! Ein kleiner Glücksmoment.';
+        });
+        if (!bigWin) _scheduleSmallWinTransfer();
+      } else {
+        setState(() {
+          _catExcited = false;
+          _catMessage = _nextConsolationMessage();
+        });
+      }
+    } finally {
+      _spinRequestActive = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -138,66 +200,103 @@ class _CatSlotPageState extends State<CatSlotPage> {
     return message;
   }
 
-  /// Wird beim Klick auf COLLECT aufgerufen:
-  /// 1. Win-Overlay schließen
-  /// 2. Positionen ermitteln
-  /// 3. Coin-Fly-Animation starten
-  void _onCollect() {
-    // Positionen jetzt ermitteln (Widgets sind noch im Tree)
+  void _scheduleSmallWinTransfer() {
+    _smallWinTimer?.cancel();
+    _smallWinTimer = Timer(CatSlotStyles.smallWinAutoCollectDelay, () {
+      if (!mounted || _presentedWin <= 0) return;
+      _startCoinTransfer(fromReels: true);
+    });
+  }
+
+  /// Starts a visual transfer only. The controller balance was settled at the
+  /// same moment as the spin result and is never changed from this callback.
+  void _startCoinTransfer({required bool fromReels}) {
+    if (_presentedWin <= 0) return;
+    _smallWinTimer?.cancel();
     final balanceBox =
         _balanceKey.currentContext?.findRenderObject() as RenderBox?;
-
-    // Start = Bildschirmmitte – exakt dort, wo der Win-Betrag im Panel stand.
-    // So wirkt es, als würde der Betrag sich in Münzen auflösen.
     final screen = MediaQuery.of(context).size;
-    _coinStart = Offset(screen.width / 2, screen.height / 2);
+    final reelBox = _reelKey.currentContext?.findRenderObject() as RenderBox?;
+    _coinStart = fromReels && reelBox != null
+        ? reelBox.localToGlobal(reelBox.size.center(Offset.zero))
+        : Offset(screen.width / 2, screen.height / 2);
 
     if (balanceBox != null) {
-      final balanceSize = balanceBox.size;
       _coinTarget = balanceBox.localToGlobal(
-        Offset(balanceSize.width / 2, balanceSize.height / 2),
+        balanceBox.size.center(Offset.zero),
       );
+    } else {
+      _coinTarget = Offset(screen.width * 0.5, 72);
     }
 
-    _coinFlyPendingWin = _controller.pendingWin;
-    _displayCoins = _controller.coins;
-    // Neuen stabilen Key erzeugen BEVOR setState – bleibt in allen
-    // Folge-Rebuilds dieser Collect-Session konstant.
+    if (_reduceMotion) {
+      _audio.playCollectSound();
+      _finishWinPresentation();
+      return;
+    }
+
     _coinFlyKey = UniqueKey();
     setState(() {
-      _showWinOverlay = false;
-      _winCollected = true;
+      _showBigWinPanel = false;
+      _showSmallWinChip = false;
       _showCoinFly = true;
     });
     _audio.playCollectSound();
   }
 
-  /// Called once for each coin that arrives at the credits bar.
   void _onCoinArrived(int coinIndex) {
-    final total = _coinFlyPendingWin;
     const count = CatSlotStyles.coinCount;
-    final base = total ~/ count;
-    final extra = total % count;
-    // Distribute remainder across first `extra` coins
+    final base = _presentedWin ~/ count;
+    final extra = _presentedWin % count;
     final increment = base + (coinIndex < extra ? 1 : 0);
-    if (increment > 0) setState(() => _displayCoins += increment);
+    if (increment > 0 && mounted) {
+      setState(() => _displayCoins += increment);
+    }
   }
 
-  /// Wird aufgerufen wenn alle Münzen angekommen sind.
   void _onCoinsDone() {
-    _controller.collectWin();
+    if (!mounted) return;
+    HapticFeedback.selectionClick();
     setState(() {
       _showCoinFly = false;
+      _showWinHighlight = false;
+      _visualBalanceActive = false;
       _displayCoins = _controller.coins;
+      _presentedWin = 0;
     });
   }
 
-  void _onReset() {
-    setState(() {
-      _showWinOverlay = false;
-      _winCollected = true;
+  void _finishWinPresentation({bool notify = true}) {
+    _smallWinTimer?.cancel();
+    final changed =
+        _showBigWinPanel ||
+        _showSmallWinChip ||
+        _showWinHighlight ||
+        _showCoinFly ||
+        _visualBalanceActive;
+    void finish() {
+      _showBigWinPanel = false;
+      _showSmallWinChip = false;
+      _showWinHighlight = false;
       _showCoinFly = false;
+      _visualBalanceActive = false;
+      _displayCoins = _controller.coins;
+      _presentedWin = 0;
+    }
+
+    if (notify && mounted && changed) {
+      setState(finish);
+    } else {
+      finish();
+    }
+  }
+
+  void _onReset() {
+    _smallWinTimer?.cancel();
+    setState(() {
+      _finishWinPresentation(notify: false);
       _controller.resetGame();
+      _displayCoins = _controller.coins;
       _catMessage = 'Neun Leben, neue Runde.';
       _catExcited = false;
     });
@@ -270,7 +369,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
           KeyedSubtree(
             key: _balanceKey,
             child: BalanceLabel(
-              coins: _showCoinFly ? _displayCoins : _controller.coins,
+              coins: _visualBalanceActive ? _displayCoins : _controller.coins,
             ),
           ),
           const SizedBox(height: 13),
@@ -330,6 +429,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
           ),
           const SizedBox(height: 13),
           SizedBox(
+            key: _reelKey,
             height: CatSlotStyles.reelWindowHeight,
             width: double.infinity,
             child: FittedBox(
@@ -352,27 +452,44 @@ class _CatSlotPageState extends State<CatSlotPage> {
                             reelIndex: i,
                             targetSymbol: _controller.slots[i],
                             spinning: _controller.reelSpinning[i],
-                            highlightCenter: !_winCollected,
+                            highlightCenter: _showWinHighlight,
                             reduceMotion: reduceMotion,
                           ),
                         ],
                       ],
                     ),
-                    _WinLineOverlay(visible: _controller.pendingWin > 0),
-                    WinRevealBurst(visible: !_winCollected),
+                    _WinLineOverlay(
+                      visible: _showWinHighlight,
+                      reduceMotion: reduceMotion,
+                    ),
+                    WinRevealBurst(
+                      visible: _showWinHighlight,
+                      reduceMotion: reduceMotion,
+                      bigWin: _isBigWin,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          SmallWinChip(
+            visible: _showSmallWinChip,
+            coinsWon: _presentedWin,
+            reduceMotion: reduceMotion,
+          ),
+          SizedBox(height: _showSmallWinChip ? 12 : 4),
           if (_controller.coins > 0 ||
               _controller.isSpinning ||
-              _showWinOverlay ||
+              _showBigWinPanel ||
               _showCoinFly)
             SpinButton(
-              isSpinning: _controller.isSpinning,
-              onPressed: _controller.isSpinning || _controller.coins <= 0
+              isSpinning: _controller.isSpinning || _spinRequestActive,
+              onPressed:
+                  _spinRequestActive ||
+                      _controller.isSpinning ||
+                      _controller.coins <= 0 ||
+                      _showBigWinPanel
                   ? null
                   : _onSpin,
             )
@@ -440,16 +557,18 @@ class _CatSlotPageState extends State<CatSlotPage> {
             ),
           ),
         ),
-        Positioned.fill(
-          child: Material(
-            type: MaterialType.transparency,
-            child: WinPanel(
-              visible: _showWinOverlay,
-              coinsWon: _controller.pendingWin,
-              onCollect: _onCollect,
+        if (_showBigWinPanel)
+          Positioned.fill(
+            child: Material(
+              type: MaterialType.transparency,
+              child: WinPanel(
+                visible: true,
+                coinsWon: _presentedWin,
+                onCollect: () => _startCoinTransfer(fromReels: false),
+                reduceMotion: _reduceMotion,
+              ),
             ),
           ),
-        ),
         if (_showCoinFly)
           Positioned.fill(
             child: Material(
@@ -460,6 +579,7 @@ class _CatSlotPageState extends State<CatSlotPage> {
                 targetCenter: _coinTarget,
                 onDone: _onCoinsDone,
                 onCoinArrived: _onCoinArrived,
+                reduceMotion: _reduceMotion,
               ),
             ),
           ),
@@ -472,7 +592,9 @@ class _CatSlotPageState extends State<CatSlotPage> {
 
 class _WinLineOverlay extends StatefulWidget {
   final bool visible;
-  const _WinLineOverlay({required this.visible});
+  final bool reduceMotion;
+
+  const _WinLineOverlay({required this.visible, required this.reduceMotion});
 
   @override
   State<_WinLineOverlay> createState() => _WinLineOverlayState();
@@ -494,13 +616,17 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-    if (widget.visible) _ctrl.repeat(reverse: true);
+    if (widget.visible && !widget.reduceMotion) _ctrl.repeat(reverse: true);
   }
 
   @override
   void didUpdateWidget(_WinLineOverlay old) {
     super.didUpdateWidget(old);
-    if (widget.visible && !old.visible) {
+    if (widget.reduceMotion) {
+      _ctrl
+        ..stop()
+        ..reset();
+    } else if (widget.visible && (!old.visible || old.reduceMotion)) {
       _ctrl.repeat(reverse: true);
     } else if (!widget.visible && old.visible) {
       _ctrl.stop();
@@ -518,7 +644,9 @@ class _WinLineOverlayState extends State<_WinLineOverlay>
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       opacity: widget.visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
+      duration: widget.reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 240),
       child: IgnorePointer(
         child: SizedBox(
           width: CatSlotStyles.reelRowWidth,

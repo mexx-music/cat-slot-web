@@ -9,7 +9,7 @@ class AudioService {
   void playSpinSound({int durationMs = 1500}) {}
   void playReelStopSound(int reelIndex) {}
   void playStopSound() {}
-  void playWinSound() {}
+  void playWinSound({bool big = false}) {}
   void playCollectSound() {}
 
   Future<void> dispose() async {}

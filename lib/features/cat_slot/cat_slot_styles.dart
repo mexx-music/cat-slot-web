@@ -82,15 +82,18 @@ class CatSlotStyles {
   static const double winOverlayFontSize = 52;
 
   // ── Premium Win-Effekt (Phase 1 + Phase 2) ────────────────────
-  /// Dauer der Phase-1-Reveal-Sekunde (Burst über der Gewinnreihe).
-  static const Duration winRevealDuration = Duration(milliseconds: 650);
+  /// Kurzer Licht-/Pfotenakzent unmittelbar nach dem letzten Rollenstopp.
+  static const Duration winRevealDuration = Duration(milliseconds: 480);
 
-  /// Wartezeit, in der nur Phase 1 (Burst + Reel-Pulse) sichtbar ist,
-  /// bevor das große Win-Panel eingeblendet wird.
-  static const Duration winPhase1Dwell = Duration(milliseconds: 520);
+  /// Einblendung des kompakten Panels für größere Gewinne.
+  static const Duration winPanelDuration = Duration(milliseconds: 360);
 
-  /// Dauer der Counter-Tick-Animation im Win-Panel.
-  static const Duration winCounterDuration = Duration(milliseconds: 900);
+  /// Dauer der Betragszählung im Panel.
+  static const Duration winCounterDuration = Duration(milliseconds: 620);
+
+  /// Kleine Gewinne starten den visuellen Coin-Flug automatisch nach dem
+  /// kurzen Symbol-Reveal, ohne den Spielfluss durch ein Modal zu blockieren.
+  static const Duration smallWinAutoCollectDelay = Duration(milliseconds: 420);
 
   /// Schwellwerte für die Win-Tier-Anzeige (Beträge in PurrCoins).
   /// Mit der finalen 3/4/5/7/10-Staffelung ergibt das:
@@ -105,20 +108,11 @@ class CatSlotStyles {
   static const Color winGoldLight = Color(0xFFFFF1A8);
 
   // Coin-Fly-Animation
-  static const double coinSize = 44.0; // Flug-Münzen (größer = wertiger)
-  static const double heroCoinSize = 130.0; // große Hero-Coin vor dem Flug
-  static const int coinCount = 5; // weniger, dafür hochwertiger
-  static const Duration coinHeroDuration = Duration(
-    milliseconds: 460,
-  ); // Hero einblenden
-  static const Duration coinHoldDuration = Duration(
-    milliseconds: 420,
-  ); // sichtbare Pause
-  static const Duration coinFlyDuration = Duration(
-    milliseconds: 880,
-  ); // Flugdauer pro Münze
-  static const int coinStaggerMs =
-      95; // Versatz zwischen Münzen (etwas mehr Luft)
+  static const double coinSize = 34.0;
+  static const int coinCount = 5;
+  static const Duration coinFlyDuration = Duration(milliseconds: 720);
+  static const double coinStaggerFraction = 0.075;
+
   /// Größe des Impact-Bursts am Credits-Ziel bei Münz-Ankunft.
   static const double coinImpactBurstSize = 78.0;
 }
