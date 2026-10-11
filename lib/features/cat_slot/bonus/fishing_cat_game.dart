@@ -52,7 +52,7 @@ class _FishingCatGameState extends State<FishingCatGame>
   FishingCatResult? _result;
   Timer? _feedbackTimer;
 
-  double get _worldTime => _world.value * 12;
+  double get _worldTime => _world.value * 3600;
   double get _hookY => .18 + sin(pi * _cast.value) * .70;
 
   @override
@@ -67,10 +67,12 @@ class _FishingCatGameState extends State<FishingCatGame>
         );
     _encounters =
         widget.encounters ?? FishingEncounterFactory.create(seed: stableSeed);
+    // A long, non-looping clock keeps every fish path continuous throughout a
+    // normal round instead of jumping at the edge of a short repeated cycle.
     _world =
-        AnimationController(vsync: this, duration: const Duration(seconds: 12))
+        AnimationController(vsync: this, duration: const Duration(hours: 1))
           ..addListener(_onFrame)
-          ..repeat();
+          ..forward();
     _cast = AnimationController(vsync: this, duration: widget.castDuration)
       ..addListener(_onFrame)
       ..addStatusListener(_onCastStatus);
@@ -79,7 +81,7 @@ class _FishingCatGameState extends State<FishingCatGame>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (!_world.isAnimating && _result == null) _world.repeat();
+      if (!_world.isAnimating && _result == null) _world.forward();
       return;
     }
     _world.stop();
@@ -103,14 +105,15 @@ class _FishingCatGameState extends State<FishingCatGame>
         worldTime: _worldTime,
       );
       if (caught != null) {
-        _caught = caught;
-        _pose = caught.kind == FishingCatchKind.boot
-            ? FishingCatPose.surprise
-            : FishingCatPose.pull;
+        setState(() {
+          _caught = caught;
+          _pose = caught.kind == FishingCatchKind.boot
+              ? FishingCatPose.surprise
+              : FishingCatPose.pull;
+        });
         HapticFeedback.selectionClick();
       }
     }
-    setState(() {});
   }
 
   void _castLine() {
