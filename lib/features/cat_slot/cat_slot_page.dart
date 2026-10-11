@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'bonus/mouse_hunt_game.dart';
+import 'bonus/cat_switch_game.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
 import 'data/slot_symbol_sets.dart';
+import 'data/bonus_games.dart';
 import 'models/bonus_game.dart';
 import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
+import 'services/cat_switch_system.dart';
 import 'widgets/balance_label.dart';
 import 'widgets/cat_mood_chip.dart';
 import 'widgets/coin_fly_overlay.dart';
@@ -75,12 +78,26 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
 
   bool get _isBigWin => _presentedWin >= CatSlotStyles.winTierBig;
 
+  List<String?> get _switchCatAssets => _activeSet.symbols
+      .where((symbol) => !symbol.isBonus)
+      .map((symbol) => symbol.assetPath)
+      .take(2)
+      .toList(growable: false);
+
   @override
   void initState() {
     super.initState();
-    _controller = widget.controller ?? CatSlotController();
+    _controller =
+        widget.controller ??
+        CatSlotController(
+          catSwitchPolicy: CatSwitchSymbolPolicy(),
+          progressStore: SharedPreferencesBonusProgressStore(),
+        );
     _displayCoins = _controller.coins;
     WidgetsBinding.instance.addObserver(this);
+    _controller.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -217,7 +234,9 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     setState(() {
       _bonusTransitioning = true;
       _catExcited = true;
-      _catMessage = 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.';
+      _catMessage = session.game.id == kMouseHuntGameId
+          ? 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.'
+          : 'Bonuskatze komplett! Zeit für Cat Switch.';
     });
     if (_lifecycleState != AppLifecycleState.resumed) {
       _bonusLaunchPending = true;
@@ -261,6 +280,20 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
     });
   }
 
+  void _onCatSwitchCompleted(CatSwitchResult result) {
+    final session = _activeBonusSession;
+    if (session == null) return;
+    final credited = _controller.creditCatSwitchOnce(session, result);
+    if (!credited || !mounted) return;
+    _audio.playCollectSound();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _displayCoins = _controller.coins;
+      _catMessage =
+          'Cat Switch bringt ${result.coinsWon} PurrCoins ins Körbchen.';
+    });
+  }
+
   void _exitBonusGame() {
     if (!mounted) return;
     setState(() {
@@ -270,8 +303,11 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _bonusRevealed = false;
       _activeBonusSession = null;
       _catExcited = false;
-      _catMessage = 'Zurück am Automaten. Die Mäuse machen Pause.';
+      _catMessage = 'Zurück am Automaten. Die Bonuskatzen schnurren.';
     });
+    if (_controller.pendingBonusGame != null) {
+      Future.microtask(_beginBonusTransition);
+    }
   }
 
   void _refresh() {
@@ -473,6 +509,25 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
             key: _balanceKey,
             child: BalanceLabel(
               coins: _visualBalanceActive ? _displayCoins : _controller.coins,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            key: const ValueKey('cat-switch-progress'),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0x552E4456),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x668CE4DC)),
+            ),
+            child: Text(
+              'BONUSKATZE  ${_controller.catSwitchProgress}/3',
+              style: const TextStyle(
+                color: Color(0xFFBFEDE8),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
           const SizedBox(height: 13),
@@ -690,7 +745,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               ),
             ),
           ),
-        if (_showBonusGame && _activeBonusSession != null)
+        if (_showBonusGame && _activeBonusSession?.game.id == kMouseHuntGameId)
           Positioned.fill(
             child: MouseHuntGame(
               session: _activeBonusSession!,
@@ -698,6 +753,22 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
               onExit: _exitBonusGame,
               reduceMotion: _reduceMotion,
               hunterSetId: _activeSet.id,
+            ),
+          ),
+        if (_showBonusGame && _activeBonusSession?.game.id == kCatSwitchGameId)
+          Positioned.fill(
+            child: Builder(
+              builder: (context) {
+                final assets = _switchCatAssets;
+                return CatSwitchGame(
+                  session: _activeBonusSession!,
+                  onRoundCompleted: _onCatSwitchCompleted,
+                  onExit: _exitBonusGame,
+                  reduceMotion: _reduceMotion,
+                  targetAssetPath: assets.isNotEmpty ? assets[0] : null,
+                  distractorAssetPath: assets.length > 1 ? assets[1] : null,
+                );
+              },
             ),
           ),
       ],

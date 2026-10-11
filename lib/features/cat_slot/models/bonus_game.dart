@@ -34,3 +34,17 @@ class BonusGameResult {
     required this.skipped,
   });
 }
+
+class CatSwitchResult {
+  final int correct;
+  final int roundsPlayed;
+  final int coinsWon;
+  final bool skipped;
+
+  const CatSwitchResult({
+    required this.correct,
+    required this.roundsPlayed,
+    required this.coinsWon,
+    required this.skipped,
+  });
+}

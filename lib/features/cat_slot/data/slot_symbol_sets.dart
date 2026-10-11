@@ -66,6 +66,13 @@ List<SlotSymbol> _buildSymbols({String? setFolder}) {
       payout: 0,
       bonusGameId: kMouseHuntGameId,
     ),
+    const SlotSymbol(
+      id: kCatSwitchBonusSymbolId,
+      emoji: 'CAT',
+      label: 'Cat Switch Bonus',
+      payout: 0,
+      bonusGameId: kCatSwitchGameId,
+    ),
   ];
 }
 

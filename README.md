@@ -45,6 +45,35 @@ Die bestehende Spielmathematik ist bewusst unverändert:
   0,22272 PurrCoins pro Spin; der Bonus addiert abhängig vom Geschick zwischen
   0,8 und maximal 6,8 PurrCoins pro Spin im Langzeitmittel.
 
+### Cat Switch
+
+- Das stabile Symbol `bonus_cat_switch` kann an jeder der neun sichtbaren
+  Rollenpositionen erscheinen. Drei sichtbare Symbole starten **Cat Switch**
+  direkt – Reihe, Diagonale oder freie Verteilung spielen keine Rolle.
+- Bei einem oder zwei Symbolen wächst der sichtbare Sammler von 0/3 bis 2/3.
+  Dieser Fortschritt wird lokal über `shared_preferences` gespeichert und
+  bleibt nach einem Neustart erhalten. Beim Überschreiten von drei wird genau
+  eine Runde gestartet und der Rest modulo drei weitergeführt.
+- Ein direkter Dreier startet genau eine Runde und verbraucht oder verdoppelt
+  den bereits vorhandenen Sammelfortschritt nicht.
+- Cat Switch hat zehn kurze Runden. Ziel- und Ablenkkatze tauschen automatisch
+  die Position, wobei das Tempo von 900 auf mindestens 480 Millisekunden
+  steigt. Während des 190-Millisekunden-Tauschs ist die Eingabe gesperrt; pro
+  Runde zählt höchstens ein Tipp.
+- Vorhandene Katzenbilder des aktiven Symbolsets werden wiederverwendet und
+  mit einem goldenen Zielanhänger ergänzt. Im bildlosen Standardset kommt eine
+  eigene, mit Flutter gezeichnete Katzenillustration statt Emoji-Platzhaltern
+  zum Einsatz.
+- Belohnung: 20 PurrCoins Teilnahmebonus, 8 pro Treffer und 20 zusätzlich bei
+  perfekten 10/10. Damit sind 20 bis 120 PurrCoins möglich. Alle Werte liegen
+  zentral in `CatSwitchEconomy`.
+- Die Symbolverteilung ergibt laut Simulation ungefähr eine Cat-Switch-Runde
+  je 38 Spins (2,6 %): 0,3 % direkte Dreier sowie ein kontrollierter Sammler
+  aus 1–2 Symbolen.
+- Wenn Mouse Hunt und Cat Switch im selben Spin auslösen, wird Mouse Hunt
+  zuerst gespielt; Cat Switch bleibt in der Bonus-Warteschlange erhalten.
+  Keine beiden Overlays werden gleichzeitig geöffnet.
+
 ## Wallet-Hinweis
 
 Die aktuelle Wallet ist weiterhin sitzungsgebunden und wird bei einem echten
@@ -66,7 +95,8 @@ flutter build ios --simulator --debug --no-codesign
 ```
 
 Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout, den vollständigen
-Spin-Ablauf und Mouse Hunt einschließlich Sprung/Fang-Synchronisierung,
-Fehlschlägen, schnellen Mehrfachtaps, Überspringen und App-Unterbrechung.
+Spin-Ablauf, Mouse Hunt und Cat Switch einschließlich Treffer/Fehlschlag,
+Sammler-Persistenz, Bonus-Warteschlange, schnellen Mehrfachtaps, Überspringen,
+kleinen sowie großen Displays und App-Unterbrechung.
 Simulations- und Auszahlungstests sichern Bonusfrequenz und bestehende
 Gewinnwerte gegen unbeabsichtigte Änderungen ab.
