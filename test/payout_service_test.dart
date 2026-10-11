@@ -7,12 +7,10 @@ void main() {
 
   group('PayoutService', () {
     test('keeps every configured three-of-a-kind payout unchanged', () {
-      for (final symbol in kStandardSet.symbols) {
-        final result = payout.evaluate([
-          symbol.emoji,
-          symbol.emoji,
-          symbol.emoji,
-        ]);
+      for (final symbol in kStandardSet.symbols.where(
+        (symbol) => !symbol.isBonus,
+      )) {
+        final result = payout.evaluate([symbol.id, symbol.id, symbol.id]);
 
         expect(result.isWin, isTrue, reason: symbol.id);
         expect(result.coinsWon, symbol.payout, reason: symbol.id);
@@ -23,9 +21,9 @@ void main() {
     test('does not reward mixed symbols', () {
       final symbols = kStandardSet.symbols;
       final result = payout.evaluate([
-        symbols[0].emoji,
-        symbols[0].emoji,
-        symbols[1].emoji,
+        symbols[0].id,
+        symbols[0].id,
+        symbols[1].id,
       ]);
 
       expect(result.isWin, isFalse);
@@ -35,8 +33,11 @@ void main() {
 
     test('requires exactly three symbols', () {
       expect(payout.evaluate(const []).isWin, isFalse);
-      expect(payout.evaluate(const ['🐱', '🐱']).isWin, isFalse);
-      expect(payout.evaluate(const ['🐱', '🐱', '🐱', '🐱']).isWin, isFalse);
+      expect(payout.evaluate(const ['cat', 'cat']).isWin, isFalse);
+      expect(
+        payout.evaluate(const ['cat', 'cat', 'cat', 'cat']).isWin,
+        isFalse,
+      );
     });
   });
 }

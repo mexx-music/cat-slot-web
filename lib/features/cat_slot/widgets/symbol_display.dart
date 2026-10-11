@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/slot_symbol.dart';
 import '../cat_slot_styles.dart';
+import 'mouse_art.dart';
 
 /// Zeigt ein einzelnes Slot-Symbol an.
 ///
@@ -22,6 +23,14 @@ class SymbolDisplay extends StatelessWidget {
         .round()
         .clamp(96, 384)
         .toInt();
+
+    if (symbol.isBonus) {
+      return const SizedBox(
+        width: s,
+        height: s,
+        child: Center(child: CozyMouse(size: 68, bonusBadge: true)),
+      );
+    }
 
     return SizedBox(
       width: s,

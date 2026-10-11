@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:catslot/features/cat_slot/cat_slot_controller.dart';
+import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FixedRandom implements Random {
@@ -36,6 +37,7 @@ class _SequenceRandom implements Random {
 
 CatSlotController _controller(Random random) => CatSlotController(
   random: random,
+  bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
   spinLeadIn: Duration.zero,
   reelStopGap: Duration.zero,
 );

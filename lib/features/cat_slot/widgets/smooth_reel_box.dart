@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../cat_slot_styles.dart';
+import '../data/bonus_games.dart';
 import '../data/slot_symbols.dart';
 import '../models/slot_symbol.dart';
 import 'symbol_display.dart';
@@ -14,17 +15,19 @@ import 'symbol_display.dart';
 /// ausschließlich aus dem CatSlotController.
 class SmoothReelBox extends StatefulWidget {
   final bool spinning;
-  final String targetSymbol;
+  final String targetSymbolId;
   final bool highlightCenter;
+  final bool emphasizeBonusLanding;
   final int reelIndex;
   final bool reduceMotion;
 
   const SmoothReelBox({
     super.key,
     required this.spinning,
-    required this.targetSymbol,
+    required this.targetSymbolId,
     required this.reelIndex,
     this.highlightCenter = false,
+    this.emphasizeBonusLanding = false,
     this.reduceMotion = false,
   });
 
@@ -40,6 +43,7 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
   final Random _random = Random();
   late final AnimationController _scrollController;
   late final AnimationController _pulseController;
+  late final AnimationController _bonusController;
   late final Animation<double> _pulse;
   late List<SlotSymbol> _band;
   int _landingId = 0;
@@ -58,6 +62,10 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
       duration: const Duration(milliseconds: 760),
     );
     _pulse = CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut);
+    _bonusController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 620),
+    );
 
     if (widget.spinning) _startSpinning();
     if (widget.highlightCenter && !widget.spinning) {
@@ -77,6 +85,12 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
         _hasSpun = true;
         _landingId++;
       });
+    }
+
+    if (widget.emphasizeBonusLanding &&
+        !oldWidget.emphasizeBonusLanding &&
+        !widget.reduceMotion) {
+      _bonusController.forward(from: 0);
     }
 
     if (widget.highlightCenter && !widget.spinning) {
@@ -110,7 +124,7 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
   List<SlotSymbol> get _landedSymbols {
     final symbols = kSlotSymbols;
     final centerIndex = symbols.indexWhere(
-      (symbol) => symbol.emoji == widget.targetSymbol,
+      (symbol) => symbol.id == widget.targetSymbolId,
     );
     final safeIndex = centerIndex < 0 ? 0 : centerIndex;
     return [
@@ -124,6 +138,7 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
   void dispose() {
     _scrollController.dispose();
     _pulseController.dispose();
+    _bonusController.dispose();
     super.dispose();
   }
 
@@ -165,6 +180,9 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
                     : _buildLandedBand(),
               ),
               if (widget.highlightCenter && !widget.spinning) _buildWinGlow(),
+              if (widget.targetSymbolId == kMouseBonusSymbolId &&
+                  !widget.spinning)
+                _buildBonusGlow(),
               if (widget.spinning && !widget.reduceMotion) _buildLightSweep(),
               const _ReelGlassOverlay(),
             ],
@@ -204,7 +222,17 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
   }
 
   Widget _buildLandedBand() {
-    final content = _SymbolBand(symbols: _landedSymbols);
+    Widget content = _SymbolBand(symbols: _landedSymbols);
+    if (widget.emphasizeBonusLanding && !widget.reduceMotion) {
+      content = AnimatedBuilder(
+        animation: _bonusController,
+        child: content,
+        builder: (_, child) {
+          final bounce = sin(_bonusController.value * pi);
+          return Transform.scale(scale: 1 + bounce * 0.12, child: child);
+        },
+      );
+    }
     if (!_hasSpun || widget.reduceMotion) return content;
     return TweenAnimationBuilder<double>(
       key: ValueKey('landing-${widget.reelIndex}-$_landingId'),
@@ -214,6 +242,50 @@ class _SmoothReelBoxState extends State<SmoothReelBox>
       builder: (_, value, child) =>
           Transform.translate(offset: Offset(0, value), child: child),
       child: content,
+    );
+  }
+
+  Widget _buildBonusGlow() {
+    return AnimatedBuilder(
+      animation: _bonusController,
+      builder: (_, __) {
+        final pulse = widget.reduceMotion
+            ? 0.35
+            : sin(_bonusController.value * pi).clamp(0.0, 1.0);
+        return Positioned(
+          top: _symbolSize + 3,
+          left: 3,
+          right: 3,
+          height: _symbolSize - 6,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(
+                  0xFF8CE4DC,
+                ).withValues(alpha: 0.5 + pulse * 0.45),
+                width: 1.5 + pulse,
+              ),
+              gradient: RadialGradient(
+                colors: [
+                  const Color(
+                    0xFF8CE4DC,
+                  ).withValues(alpha: 0.12 + pulse * 0.22),
+                  Colors.transparent,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(
+                    0xFF8CE4DC,
+                  ).withValues(alpha: 0.2 + pulse * 0.34),
+                  blurRadius: 12 + pulse * 22,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

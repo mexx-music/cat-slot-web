@@ -11,11 +11,17 @@ class SlotSymbol {
   /// Wenn gesetzt, wird das Bild angezeigt statt des Emojis.
   final String? assetPath;
 
+  /// Stable bonus game ID when this symbol activates a minigame.
+  final String? bonusGameId;
+
+  bool get isBonus => bonusGameId != null;
+
   const SlotSymbol({
     required this.id,
     required this.label,
     required this.payout,
     required this.emoji,
     this.assetPath,
+    this.bonusGameId,
   });
 }

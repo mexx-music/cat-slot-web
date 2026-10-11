@@ -5,20 +5,25 @@ import '../models/spin_result.dart';
 class PayoutService {
   const PayoutService();
 
-  SpinResult evaluate(List<String> slots) {
+  SpinResult evaluate(List<String> symbolIds) {
     final isWin =
-        slots.length == 3 && slots[0] == slots[1] && slots[1] == slots[2];
+        symbolIds.length == 3 &&
+        symbolIds[0] == symbolIds[1] &&
+        symbolIds[1] == symbolIds[2];
 
     if (!isWin) {
       return const SpinResult(isWin: false, message: 'Try again', coinsWon: 0);
     }
 
-    // Payout anhand des Gewinn-Symbols aus der zentralen Symbol-Liste lesen
-    final winEmoji = slots[0];
+    // Stable IDs keep payout and bonus recognition independent from artwork.
     final symbol = kSlotSymbols.firstWhere(
-      (s) => s.emoji == winEmoji,
+      (candidate) => candidate.id == symbolIds[0],
       orElse: () => kSlotSymbols.first,
     );
+
+    if (symbol.isBonus) {
+      return const SpinResult(isWin: false, message: 'Bonus game', coinsWon: 0);
+    }
 
     return SpinResult(
       isWin: true,

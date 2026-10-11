@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:catslot/features/cat_slot/cat_slot_controller.dart';
 import 'package:catslot/features/cat_slot/cat_slot_page.dart';
+import 'package:catslot/features/cat_slot/services/bonus_trigger_policy.dart';
 
 class _FixedRandom implements Random {
   final int value;
@@ -35,6 +36,7 @@ class _SequenceRandom implements Random {
 
 CatSlotController _fastController(Random random) => CatSlotController(
   random: random,
+  bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
   spinLeadIn: Duration.zero,
   reelStopGap: Duration.zero,
 );
@@ -84,7 +86,10 @@ void main() {
   testWidgets('a spin animates and keeps the existing one-coin cost', (
     tester,
   ) async {
-    final controller = CatSlotController(random: _SequenceRandom());
+    final controller = CatSlotController(
+      random: _SequenceRandom(),
+      bonusTriggerPolicy: BonusTriggerPolicy(probability: 0),
+    );
     await pumpGame(
       tester,
       logicalSize: const Size(390, 844),
@@ -208,5 +213,38 @@ void main() {
     expect(tester.takeException(), isNull);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+
+  testWidgets('three mouse IDs open Mouse Hunt and return to the slot', (
+    tester,
+  ) async {
+    final controller = CatSlotController(
+      random: const _FixedRandom(0),
+      bonusTriggerPolicy: BonusTriggerPolicy(probability: 1),
+      spinLeadIn: Duration.zero,
+      reelStopGap: Duration.zero,
+    );
+    await pumpGame(
+      tester,
+      logicalSize: const Size(390, 844),
+      controller: controller,
+    );
+
+    await tester.tap(find.text('SPIN'));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 550));
+
+    expect(find.byKey(const ValueKey('mouse-hunt-game')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('skip-mouse-hunt')));
+    await tester.pump();
+    expect(controller.coins, 29); // 10 - 1 + 20 participation bonus
+    await tester.tap(find.byKey(const ValueKey('return-to-slot')));
+    await tester.pump();
+
+    expect(find.text('CAT SLOT'), findsOneWidget);
+    expect(find.byKey(const ValueKey('mouse-hunt-game')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

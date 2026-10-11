@@ -4,3 +4,6 @@ import 'slot_symbol_sets.dart';
 /// Bequemer Alias auf die Symbol-Liste des aktuell aktiven Sets.
 /// Bestehender Code kann weiterhin [kSlotSymbols] verwenden.
 List<SlotSymbol> get kSlotSymbols => kActiveSymbolSet.symbols;
+
+List<SlotSymbol> get kRegularSlotSymbols =>
+    kActiveSymbolSet.symbols.where((symbol) => !symbol.isBonus).toList();

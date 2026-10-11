@@ -1,5 +1,6 @@
 import '../models/slot_symbol.dart';
 import '../models/symbol_set.dart';
+import 'bonus_games.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Kanonische PurrCoin-Staffelung (FINAL – set-übergreifend identisch)
@@ -57,6 +58,13 @@ List<SlotSymbol> _buildSymbols({String? setFolder}) {
       label: 'Heart-Eyes Cat',
       payout: 10,
       assetPath: path('cat_heart'),
+    ),
+    const SlotSymbol(
+      id: kMouseBonusSymbolId,
+      emoji: '🐭',
+      label: 'Mouse Hunt Bonus',
+      payout: 0,
+      bonusGameId: kMouseHuntGameId,
     ),
   ];
 }

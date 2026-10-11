@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'bonus/mouse_hunt_game.dart';
 import 'cat_slot_controller.dart';
 import 'cat_slot_styles.dart';
 import 'data/slot_symbol_sets.dart';
+import 'models/bonus_game.dart';
 import 'models/symbol_set.dart';
 import 'services/audio_service.dart';
 import 'widgets/balance_label.dart';
@@ -37,6 +40,11 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
   bool _showCoinFly = false;
   bool _visualBalanceActive = false;
   bool _spinRequestActive = false;
+  bool _bonusRevealed = false;
+  bool _bonusTransitioning = false;
+  bool _showBonusGame = false;
+  bool _bonusLaunchPending = false;
+  BonusGameSession? _activeBonusSession;
 
   // Visual counter only. The controller balance is already settled.
   int _displayCoins = 0;
@@ -59,6 +67,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
   // Stable for one transfer so counter rebuilds do not restart the flight.
   Key _coinFlyKey = const ValueKey('coin-fly-initial');
   Timer? _smallWinTimer;
+  Timer? _bonusTransitionTimer;
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
 
   bool get _reduceMotion =>
@@ -78,6 +87,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _smallWinTimer?.cancel();
+    _bonusTransitionTimer?.cancel();
     _audio.dispose();
     super.dispose();
   }
@@ -90,11 +100,19 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         (_showBigWinPanel || _showSmallWinChip || _showCoinFly)) {
       _finishWinPresentation();
     }
+    if (state != AppLifecycleState.resumed &&
+        _activeBonusSession != null &&
+        !_showBonusGame) {
+      _bonusTransitionTimer?.cancel();
+      _bonusLaunchPending = true;
+    } else if (state == AppLifecycleState.resumed && _bonusLaunchPending) {
+      _showPendingBonus();
+    }
   }
 
   /// Wechselt das aktive Symbol-Set und baut die Rollen neu auf.
   Future<void> _onSetChanged(SymbolSet set) async {
-    if (_controller.isSpinning) return; // kein Wechsel während Spin
+    if (_controller.isSpinning || _activeBonusSession != null) return;
     await Future.wait([
       for (final symbol in set.symbols)
         if (symbol.assetPath != null)
@@ -112,7 +130,11 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
   }
 
   Future<void> _onSpin() async {
-    if (_spinRequestActive || _controller.isSpinning) return;
+    if (_spinRequestActive ||
+        _controller.isSpinning ||
+        _activeBonusSession != null) {
+      return;
+    }
     setState(() => _spinRequestActive = true);
     // A new spin is an intentional skip for any remaining visual-only reward
     // transfer. The already settled balance cannot be credited twice.
@@ -124,6 +146,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _audio.playSpinSound();
       setState(() {
         _showWinHighlight = false;
+        _bonusRevealed = false;
         _catExcited = false;
         _catMessage = 'Pfoten weg vom Hebel … jetzt wird geschnurrt!';
       });
@@ -131,7 +154,12 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
         _refresh,
         onReelStop: (i) {
           _audio.playReelStopSound(i);
-          HapticFeedback.selectionClick();
+          if (i == 2 && _controller.isBonusSpin) {
+            HapticFeedback.heavyImpact();
+            if (mounted) setState(() => _bonusRevealed = true);
+          } else {
+            HapticFeedback.selectionClick();
+          }
         },
         onWinSettled: (win) {
           _presentedWin = win;
@@ -141,6 +169,10 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       );
       _audio.stopPurrLoop();
       if (!mounted) return;
+      if (_controller.pendingBonusGame != null) {
+        _beginBonusTransition();
+        return;
+      }
       if (_lifecycleState != AppLifecycleState.resumed) {
         _finishWinPresentation();
         return;
@@ -175,6 +207,71 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
       _spinRequestActive = false;
       if (mounted) setState(() {});
     }
+  }
+
+  void _beginBonusTransition() {
+    final session = _controller.beginPendingBonus();
+    if (session == null) return;
+    _activeBonusSession = session;
+    _audio.playWinSound(big: true);
+    setState(() {
+      _bonusTransitioning = true;
+      _catExcited = true;
+      _catMessage = 'Drei Mäuse! Die geheime Katzenklappe öffnet sich.';
+    });
+    if (_lifecycleState != AppLifecycleState.resumed) {
+      _bonusLaunchPending = true;
+      return;
+    }
+    if (_reduceMotion) {
+      _showPendingBonus();
+      return;
+    }
+    _bonusTransitionTimer?.cancel();
+    _bonusTransitionTimer = Timer(
+      const Duration(milliseconds: 520),
+      _showPendingBonus,
+    );
+  }
+
+  void _showPendingBonus() {
+    if (!mounted || _activeBonusSession == null) return;
+    if (_lifecycleState != AppLifecycleState.resumed) {
+      _bonusLaunchPending = true;
+      return;
+    }
+    setState(() {
+      _bonusLaunchPending = false;
+      _bonusTransitioning = false;
+      _showBonusGame = true;
+    });
+  }
+
+  void _onBonusCompleted(BonusGameResult result) {
+    final session = _activeBonusSession;
+    if (session == null) return;
+    final credited = _controller.creditBonusOnce(session, result);
+    if (!credited || !mounted) return;
+    _audio.playCollectSound();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _displayCoins = _controller.coins;
+      _catMessage =
+          'Mouse Hunt bringt ${result.coinsWon} PurrCoins ins Körbchen.';
+    });
+  }
+
+  void _exitBonusGame() {
+    if (!mounted) return;
+    setState(() {
+      _showBonusGame = false;
+      _bonusTransitioning = false;
+      _bonusLaunchPending = false;
+      _bonusRevealed = false;
+      _activeBonusSession = null;
+      _catExcited = false;
+      _catMessage = 'Zurück am Automaten. Die Mäuse machen Pause.';
+    });
   }
 
   void _refresh() {
@@ -293,9 +390,15 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
 
   void _onReset() {
     _smallWinTimer?.cancel();
+    _bonusTransitionTimer?.cancel();
     setState(() {
       _finishWinPresentation(notify: false);
       _controller.resetGame();
+      _activeBonusSession = null;
+      _showBonusGame = false;
+      _bonusTransitioning = false;
+      _bonusLaunchPending = false;
+      _bonusRevealed = false;
       _displayCoins = _controller.coins;
       _catMessage = 'Neun Leben, neue Runde.';
       _catExcited = false;
@@ -450,9 +553,10 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
                           SmoothReelBox(
                             key: ValueKey('${_activeSet.id}-$i'),
                             reelIndex: i,
-                            targetSymbol: _controller.slots[i],
+                            targetSymbolId: _controller.slots[i],
                             spinning: _controller.reelSpinning[i],
                             highlightCenter: _showWinHighlight,
+                            emphasizeBonusLanding: _bonusRevealed && i == 2,
                             reduceMotion: reduceMotion,
                           ),
                         ],
@@ -482,6 +586,7 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
           if (_controller.coins > 0 ||
               _controller.isSpinning ||
               _showBigWinPanel ||
+              _bonusTransitioning ||
               _showCoinFly)
             SpinButton(
               isSpinning: _controller.isSpinning || _spinRequestActive,
@@ -489,7 +594,9 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
                   _spinRequestActive ||
                       _controller.isSpinning ||
                       _controller.coins <= 0 ||
-                      _showBigWinPanel
+                      _showBigWinPanel ||
+                      _bonusTransitioning ||
+                      _activeBonusSession != null
                   ? null
                   : _onSpin,
             )
@@ -581,6 +688,15 @@ class _CatSlotPageState extends State<CatSlotPage> with WidgetsBindingObserver {
                 onCoinArrived: _onCoinArrived,
                 reduceMotion: _reduceMotion,
               ),
+            ),
+          ),
+        if (_showBonusGame && _activeBonusSession != null)
+          Positioned.fill(
+            child: MouseHuntGame(
+              session: _activeBonusSession!,
+              onRoundCompleted: _onBonusCompleted,
+              onExit: _exitBonusGame,
+              reduceMotion: _reduceMotion,
             ),
           ),
       ],
