@@ -285,9 +285,11 @@ class _CoinFlyOverlayState extends State<CoinFlyOverlay>
           // ── Impact-Burst am Credits-Ziel ─────────────────────
           if (_phase == _Phase.fly)
             Positioned(
-              left: widget.targetCenter.dx -
+              left:
+                  widget.targetCenter.dx -
                   CatSlotStyles.coinImpactBurstSize / 2,
-              top: widget.targetCenter.dy -
+              top:
+                  widget.targetCenter.dy -
                   CatSlotStyles.coinImpactBurstSize / 2,
               width: CatSlotStyles.coinImpactBurstSize,
               height: CatSlotStyles.coinImpactBurstSize,
@@ -584,9 +586,7 @@ class _ImpactBurstState extends State<_ImpactBurst>
         final t = _t.value;
         if (t == 0.0) return const SizedBox.shrink();
         // Ring wächst und verblasst, kompakter Glow-Kern darunter
-        return CustomPaint(
-          painter: _ImpactBurstPainter(progress: t),
-        );
+        return CustomPaint(painter: _ImpactBurstPainter(progress: t));
       },
     );
   }

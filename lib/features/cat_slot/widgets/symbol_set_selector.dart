@@ -20,7 +20,6 @@ class SymbolSetSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         const Text(
           'Set: ',
@@ -31,30 +30,35 @@ class SymbolSetSelector extends StatelessWidget {
             shadows: CatSlotStyles.darkBgTextShadows,
           ),
         ),
-        DropdownButton<SymbolSet>(
-          value: activeSet,
-          isDense: true,
-          underline: const SizedBox.shrink(),
-          borderRadius: BorderRadius.circular(10),
-          dropdownColor: const Color(0xFF2D1B4E), // dunkles Lila für Dropdown-Menü
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: CatSlotStyles.darkBgTextColor,
-            shadows: CatSlotStyles.darkBgTextShadows,
+        Expanded(
+          child: DropdownButton<SymbolSet>(
+            value: activeSet,
+            isDense: true,
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            borderRadius: BorderRadius.circular(10),
+            dropdownColor: const Color(
+              0xFF2D1B4E,
+            ), // dunkles Lila für Dropdown-Menü
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: CatSlotStyles.darkBgTextColor,
+              shadows: CatSlotStyles.darkBgTextShadows,
+            ),
+            iconEnabledColor: CatSlotStyles.darkBgTextColor,
+            items: kAllSymbolSets
+                .map(
+                  (set) => DropdownMenuItem(
+                    value: set,
+                    child: Text(set.label, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: (set) {
+              if (set != null) onChanged(set);
+            },
           ),
-          iconEnabledColor: CatSlotStyles.darkBgTextColor,
-          items: kAllSymbolSets
-              .map(
-                (set) => DropdownMenuItem(
-                  value: set,
-                  child: Text(set.label),
-                ),
-              )
-              .toList(),
-          onChanged: (set) {
-            if (set != null) onChanged(set);
-          },
         ),
       ],
     );

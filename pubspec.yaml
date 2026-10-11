@@ -59,14 +59,24 @@ flutter:
   assets:
     # Audio-Effekte
     - assets/audio/
-    # UI-Assets (Hintergrundbild etc.)
-    - assets/cat_slot/ui/
-    # Classic Symbol-Set (eigene stilisierte Bilder)
-    - assets/cat_slot/classic/
-    # Real Cats Symbol-Set (echte Katzenfotos)
-    - assets/cat_slot/real_cats/
-    # Custom Symbol-Set (eigene kreative Bilder)
-    - assets/cat_slot/custom/
+    # Grafikdateien explizit aufführen, damit Rohbilder, Finder-Metadaten und
+    # nicht verwendete Entwürfe nicht versehentlich im App-Bundle landen.
+    - assets/cat_slot/ui/vegascat.png
+    - assets/cat_slot/classic/cat.png
+    - assets/cat_slot/classic/cat_grinning.png
+    - assets/cat_slot/classic/cat_joy.png
+    - assets/cat_slot/classic/cat_tears.png
+    - assets/cat_slot/classic/cat_heart.png
+    - assets/cat_slot/real_cats/cat.png
+    - assets/cat_slot/real_cats/cat_grinning.png
+    - assets/cat_slot/real_cats/cat_joy.png
+    - assets/cat_slot/real_cats/cat_tears.png
+    - assets/cat_slot/real_cats/cat_heart.png
+    - assets/cat_slot/custom/cat.png
+    - assets/cat_slot/custom/cat_grinning.png
+    - assets/cat_slot/custom/cat_joy.png
+    - assets/cat_slot/custom/cat_tears.png
+    - assets/cat_slot/custom/cat_heart.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -5,7 +5,7 @@ import 'services/payout_service.dart';
 
 class CatSlotController {
   static const int _startCoins = 10;
-  static const int _spinCost   = 1;
+  static const int _spinCost = 1;
 
   final Random _random = Random();
   final PayoutService _payout = const PayoutService();
@@ -18,12 +18,12 @@ class CatSlotController {
 
   List<bool> reelSpinning = [false, false, false];
 
-  String result    = '';
-  bool isSpinning  = false;
-  int coins        = _startCoins;
+  String result = '';
+  bool isSpinning = false;
+  int coins = _startCoins;
 
   /// Ausstehender Gewinn – wird erst beim Collect gutgeschrieben.
-  int pendingWin   = 0;
+  int pendingWin = 0;
 
   List<String> get slots => reels.map((r) => r[1]).toList();
 
@@ -39,16 +39,18 @@ class CatSlotController {
   String randomCat() =>
       kSlotSymbols[_random.nextInt(kSlotSymbols.length)].emoji;
 
-  List<String> randomStrip(String centerEmoji) =>
-      [randomCat(), centerEmoji, randomCat()];
+  List<String> randomStrip(String centerEmoji) => [
+    randomCat(),
+    centerEmoji,
+    randomCat(),
+  ];
 
-  List<String> randomSlots() =>
-      List.generate(3, (_) => randomCat());
+  List<String> randomSlots() => List.generate(3, (_) => randomCat());
 
   /// Schreibt den ausstehenden Gewinn gut (Collect-Schritt).
   void collectWin() {
-    coins      += pendingWin;
-    pendingWin  = 0;
+    coins += pendingWin;
+    pendingWin = 0;
   }
 
   Future<void> spin(
@@ -63,32 +65,26 @@ class CatSlotController {
       return;
     }
 
-    isSpinning   = true;
-    pendingWin   = 0;
+    isSpinning = true;
+    pendingWin = 0;
     reelSpinning = [true, true, true];
-    coins       -= _spinCost;
-    result       = 'Spinning...';
+    coins -= _spinCost;
+    result = 'Spinning...';
     onUpdate();
 
-    for (int i = 0; i < 8; i++) {
-      reels = reels.map((r) => randomStrip(randomCat())).toList();
-      onUpdate();
-      await Future.delayed(const Duration(milliseconds: 90));
-    }
-
+    // Die sichtbaren Rollen animieren sich selbst. Der Controller wartet nur
+    // auf die dramaturgische Spin-Dauer und liefert anschließend nacheinander
+    // die drei unveränderten, zufällig bestimmten Ergebnisse. Dadurch wird
+    // nicht mehr die komplette Seite mehrfach pro Sekunde neu aufgebaut.
     final finalCenters = randomSlots();
+    await Future.delayed(const Duration(milliseconds: 760));
 
     for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 4; j++) {
-        reels[i] = randomStrip(randomCat());
-        onUpdate();
-        await Future.delayed(const Duration(milliseconds: 85));
-      }
-      reels[i]        = randomStrip(finalCenters[i]);
+      reels[i] = randomStrip(finalCenters[i]);
       reelSpinning[i] = false;
-      onReelStop?.call(i);  // ← Sound-Callback pro Rolle
+      onReelStop?.call(i); // ← Sound-Callback pro Rolle
       onUpdate();
-      await Future.delayed(const Duration(milliseconds: 160));
+      await Future.delayed(const Duration(milliseconds: 190));
     }
 
     isSpinning = false;
@@ -102,25 +98,17 @@ class CatSlotController {
   }
 
   void resetGame() {
-    coins        = _startCoins;
-    pendingWin   = 0;
-    result       = '';
-    isSpinning   = false;
+    coins = _startCoins;
+    pendingWin = 0;
+    result = '';
+    isSpinning = false;
     reelSpinning = [false, false, false];
-    reels = [
-      _initialStrip(0),
-      _initialStrip(1),
-      _initialStrip(2),
-    ];
+    reels = [_initialStrip(0), _initialStrip(1), _initialStrip(2)];
   }
 
   /// Baut die sichtbaren Rollen neu auf Basis des aktuell aktiven Sets auf.
   /// Wird nach einem Set-Wechsel aufgerufen.
   void refreshReels() {
-    reels = [
-      _initialStrip(0),
-      _initialStrip(1),
-      _initialStrip(2),
-    ];
+    reels = [_initialStrip(0), _initialStrip(1), _initialStrip(2)];
   }
 }

@@ -1,16 +1,36 @@
-# catslot
+# CatSlot
 
-A new Flutter project.
+CatSlot ist ein kleines, gemütliches Flutter-Spiel mit Katzen-Symbolen,
+mehreren visuellen Symbolsets und einer dreistufigen Gewinnanimation.
 
-## Getting Started
+## Gestaltung
 
-This project is a starting point for a Flutter application.
+- Responsive Einspalten-Ansicht für Smartphones und Zweispalten-Ansicht für
+  Tablets.
+- Codebasierte Licht-, Glas- und Pfotendetails ohne zusätzliche große
+  Grafikdateien.
+- Performantes Endlos-Symbolband mit eigenständigen Repaint-Bereichen.
+- Humorvolle Katzenreaktionen auf Gewinne, Fast-Treffer und normale Spins.
+- Reduzierte Animationen werden über die Systemeinstellung berücksichtigt.
 
-A few resources to get you started if this is your first Flutter project:
+## Spielregeln
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Die bestehende Spielmathematik ist bewusst unverändert:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Startguthaben: 10 PurrCoins
+- Kosten pro Spin: 1 PurrCoin
+- Gewinn: drei identische Symbole
+- Auszahlungen: 3, 4, 5, 7 oder 10 PurrCoins je nach Symbol
+
+## Qualitätssicherung
+
+```text
+flutter analyze
+flutter test
+flutter build apk --debug
+flutter build ios --simulator --debug --no-codesign
+```
+
+Die Widget-Tests prüfen kompakte Smartphones, Tablet-Layout und den
+vollständigen Spin-Ablauf. Die Auszahlungstests sichern alle bestehenden
+Gewinnwerte gegen unbeabsichtigte Änderungen ab.

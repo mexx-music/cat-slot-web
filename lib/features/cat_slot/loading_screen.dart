@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'cat_slot_page.dart';
 import 'cat_slot_styles.dart';
+import 'widgets/cozy_cat_backdrop.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -21,10 +22,7 @@ class _LoadingScreenState extends State<LoadingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
-    _progress = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
+    _progress = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _controller.forward();
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -54,60 +52,96 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CatSlotStyles.scaffoldBackground,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '🐱',
-                style: TextStyle(fontSize: 72),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Cat Slot',
-                style: TextStyle(
-                  fontSize: CatSlotStyles.titleFontSize,
-                  fontWeight: FontWeight.bold,
-                  color: CatSlotStyles.balanceColor,
-                ),
-              ),
-              const SizedBox(height: 40),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: AnimatedBuilder(
-                  animation: _progress,
-                  builder: (_, __) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: const Color(0xFF100A22),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CozyCatBackdrop(),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 350),
+                  padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE61A122B),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: const Color(0x667ADDD5)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x88000000),
+                        blurRadius: 34,
+                        offset: Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      LinearProgressIndicator(
-                        value: _progress.value,
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(8),
-                        backgroundColor: Colors.black12,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          CatSlotStyles.balanceColor,
+                      Container(
+                        width: 88,
+                        height: 88,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0x334FD7CD),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Text('🐱', style: TextStyle(fontSize: 58)),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'CAT SLOT',
+                        style: TextStyle(
+                          fontSize: CatSlotStyles.titleFontSize,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 2,
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Center(
-                        child: Text(
-                          'Loading...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black45,
-                          ),
+                      const Text(
+                        'WARMING UP THE PAWS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF9FE7E0),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.1,
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      AnimatedBuilder(
+                        animation: _progress,
+                        builder: (_, __) => Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                value: _progress.value,
+                                minHeight: 7,
+                                backgroundColor: const Color(0x332FD1C6),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Color(0xFFFFD778),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Katzen werden sortiert …',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xBFF8F2FF),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -80,9 +80,7 @@ class _WinRevealBurstState extends State<WinRevealBurst>
                   left: 0,
                   right: 0,
                   height: CatSlotStyles.reelSymbolSize,
-                  child: Center(
-                    child: _ExpandingRing(progress: t),
-                  ),
+                  child: Center(child: _ExpandingRing(progress: t)),
                 ),
                 // ── Horizontaler Shine-Sweep über der Mittelreihe ────────
                 Positioned(
@@ -91,9 +89,7 @@ class _WinRevealBurstState extends State<WinRevealBurst>
                   right: 0,
                   height: CatSlotStyles.reelSymbolSize,
                   child: ClipRect(
-                    child: CustomPaint(
-                      painter: _SweepPainter(progress: t),
-                    ),
+                    child: CustomPaint(painter: _SweepPainter(progress: t)),
                   ),
                 ),
               ],
@@ -229,9 +225,10 @@ class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 620),
     );
     _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
-    _entryScale = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut),
-    );
+    _entryScale = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.elasticOut));
     _raysCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 12),
@@ -371,18 +368,12 @@ class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
           builder: (_, child) {
             final g = Curves.easeInOut.transform(_glowCtrl.value);
             return Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 36,
-                vertical: 26,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 26),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF26104A),
-                    Color(0xFF14072E),
-                  ],
+                  colors: [Color(0xFF26104A), Color(0xFF14072E)],
                 ),
                 borderRadius: BorderRadius.circular(26),
                 border: Border.all(
@@ -413,10 +404,7 @@ class _WinPanelState extends State<WinPanel> with TickerProviderStateMixin {
             mainAxisSize: MainAxisSize.min,
             children: [
               // ── Tier-Titel (WIN / BIG WIN / MEGA WIN) ────────────
-              _TitleText(
-                text: _tierLabel(),
-                fontSize: _tierFontSize(),
-              ),
+              _TitleText(text: _tierLabel(), fontSize: _tierFontSize()),
               const SizedBox(height: 14),
               // ── Star: Counter-Betrag ─────────────────────────────
               AnimatedBuilder(
@@ -631,13 +619,15 @@ class _SparklesPainter extends CustomPainter {
       final opacity = localT < 0.3
           ? (localT / 0.3)
           : (1.0 - (localT - 0.3) / 0.7);
-      final scale = 0.5 + (1.0 - (localT - 0.5).abs() * 2).clamp(0.0, 1.0) * 0.6;
+      final scale =
+          0.5 + (1.0 - (localT - 0.5).abs() * 2).clamp(0.0, 1.0) * 0.6;
       final size = s.sizePx * scale;
       final r = maxR * s.radiusFrac;
       final pos = Offset(cx + cos(s.angle) * r, cy + sin(s.angle) * r);
       final paint = Paint()
-        ..color = CatSlotStyles.winGoldLight
-            .withValues(alpha: opacity.clamp(0.0, 1.0))
+        ..color = CatSlotStyles.winGoldLight.withValues(
+          alpha: opacity.clamp(0.0, 1.0),
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
       // 4-strahliger Stern
       final path = Path()

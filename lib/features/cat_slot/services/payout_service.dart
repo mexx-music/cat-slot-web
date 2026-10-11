@@ -6,9 +6,8 @@ class PayoutService {
   const PayoutService();
 
   SpinResult evaluate(List<String> slots) {
-    final isWin = slots.length == 3 &&
-        slots[0] == slots[1] &&
-        slots[1] == slots[2];
+    final isWin =
+        slots.length == 3 && slots[0] == slots[1] && slots[1] == slots[2];
 
     if (!isWin) {
       return const SpinResult(isWin: false, message: 'Try again', coinsWon: 0);

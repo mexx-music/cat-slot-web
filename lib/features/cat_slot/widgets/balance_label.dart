@@ -104,7 +104,7 @@ class _BalanceLabelState extends State<BalanceLabel>
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'CREDITS',
+                  'PURRCOINS',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,

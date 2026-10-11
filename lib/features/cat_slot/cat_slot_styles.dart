@@ -117,7 +117,8 @@ class CatSlotStyles {
   static const Duration coinFlyDuration = Duration(
     milliseconds: 880,
   ); // Flugdauer pro Münze
-  static const int coinStaggerMs = 95; // Versatz zwischen Münzen (etwas mehr Luft)
+  static const int coinStaggerMs =
+      95; // Versatz zwischen Münzen (etwas mehr Luft)
   /// Größe des Impact-Bursts am Credits-Ziel bei Münz-Ankunft.
   static const double coinImpactBurstSize = 78.0;
 }

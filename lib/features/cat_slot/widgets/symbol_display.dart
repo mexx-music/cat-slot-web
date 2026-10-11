@@ -12,15 +12,16 @@ import '../cat_slot_styles.dart';
 class SymbolDisplay extends StatelessWidget {
   final SlotSymbol symbol;
 
-  const SymbolDisplay({
-    super.key,
-    required this.symbol,
-  });
+  const SymbolDisplay({super.key, required this.symbol});
 
   @override
   Widget build(BuildContext context) {
     const s = CatSlotStyles.symbolDisplaySize;
     final path = symbol.assetPath;
+    final cacheWidth = (s * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(96, 384)
+        .toInt();
 
     return SizedBox(
       width: s,
@@ -32,6 +33,10 @@ class SymbolDisplay extends StatelessWidget {
                 width: s,
                 height: s,
                 fit: BoxFit.contain,
+                cacheWidth: cacheWidth,
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+                semanticLabel: symbol.label,
                 errorBuilder: (_, __, ___) => _emoji(),
               )
             : _emoji(),
@@ -40,10 +45,10 @@ class SymbolDisplay extends StatelessWidget {
   }
 
   Widget _emoji() => Text(
-        symbol.emoji,
-        style: const TextStyle(
-          fontSize: CatSlotStyles.symbolEmojiFontSize,
-          height: 1.0,
-        ),
-      );
+    symbol.emoji,
+    style: const TextStyle(
+      fontSize: CatSlotStyles.symbolEmojiFontSize,
+      height: 1.0,
+    ),
+  );
 }
