@@ -350,7 +350,7 @@ void main() {
     }
 
     expect(find.byKey(const ValueKey('tree-climber-game')), findsOneWidget);
-    expect(find.text('SPRINGEN'), findsOneWidget);
+    expect(find.text('SPRINGEN!'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('skip-tree-climber')));
     await tester.pump();
     expect(find.byKey(const ValueKey('tree-result-coins')), findsOneWidget);

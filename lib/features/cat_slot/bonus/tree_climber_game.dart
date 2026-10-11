@@ -54,19 +54,22 @@ class _TreeClimberGameState extends State<TreeClimberGame>
   int _generation = 0;
   int _sectionsReached = 0;
   double _catX = .5;
-  double _sampledTargetX = .5;
+  double _cameraStartY = TreeClimberPhysics.startY;
+  double _angle = 75;
+  double _power = 75;
+  late TreeJumpTrajectory _preview;
+  TreeJumpTrajectory? _activeTrajectory;
+  TreeClimberSection? _activeSection;
   bool _sampledSuccess = false;
   bool _clawSaveUsed = false;
   bool _terminalMiss = false;
   bool _advanceOnResume = false;
-  String _message = 'Der erste Ast ist nah. Beobachte ihn und springe!';
+  String _message = 'Stelle Winkel und Kraft ein. Triff den nächsten Ast!';
 
   double get _worldSeconds => _world.value * 3600;
   TreeClimberSection get _nextSection =>
       _course.sections[min(_sectionsReached, _course.sections.length - 1)];
-  double get _liveTargetX => _phase == _ClimberPhase.jumping
-      ? _sampledTargetX
-      : _nextSection.xAt(_worldSeconds);
+  TreeJumpTrajectory get _previewTrajectory => _preview;
   int get _points => TreeClimberEconomy.pointsForSection(_sectionsReached);
   bool get _inputLocked => _phase != _ClimberPhase.ready;
   Duration get _effectiveJumpDuration =>
@@ -85,6 +88,7 @@ class _TreeClimberGameState extends State<TreeClimberGame>
           (value, code) => (value * 37 + code) & 0x7fffffff,
         );
     _course = widget.course ?? TreeClimberCourse.generate(seed: stableSeed);
+    _refreshPreview();
     _world = AnimationController(
       vsync: this,
       duration: const Duration(hours: 1),
@@ -97,6 +101,15 @@ class _TreeClimberGameState extends State<TreeClimberGame>
           ? const Duration(milliseconds: 1)
           : widget.feedbackDuration,
       value: 1,
+    );
+  }
+
+  void _refreshPreview() {
+    _preview = TreeClimberPhysics.trajectoryFor(
+      startX: _catX,
+      section: _nextSection,
+      angleDegrees: _angle,
+      powerPercent: _power,
     );
   }
 
@@ -126,20 +139,17 @@ class _TreeClimberGameState extends State<TreeClimberGame>
   void _beginJump() {
     if (_inputLocked || _result != null) return;
     final generation = ++_generation;
-    final target = _nextSection.xAt(_worldSeconds);
-    final success = TreeClimberRules.canReach(
-      catX: _catX,
-      branchX: target,
-      reachWindow: _nextSection.reachWindow,
-    );
+    final section = _nextSection;
+    final trajectory = _previewTrajectory;
     setState(() {
       _phase = _ClimberPhase.jumping;
-      _sampledTargetX = target;
-      _sampledSuccess = success;
+      _activeSection = section;
+      _activeTrajectory = trajectory;
+      _sampledSuccess = trajectory.landsOnBranch;
       _pose = TreeCatPose.jump;
-      _message = success
-          ? 'Pfoten voran – der Ast ist in Reichweite!'
-          : 'Mrrrp … das wird knapp!';
+      _message = trajectory.landsOnBranch
+          ? 'Pfoten voran – die Flugbahn trifft den Ast!'
+          : 'Mrrrp … Winkel oder Kraft waren noch nicht ganz richtig.';
     });
     HapticFeedback.lightImpact();
     _jump.forward(from: 0);
@@ -178,7 +188,8 @@ class _TreeClimberGameState extends State<TreeClimberGame>
     if (_sampledSuccess) {
       _terminalMiss = false;
       _sectionsReached++;
-      _catX = _sampledTargetX;
+      _catX = _activeSection!.targetX;
+      _cameraStartY = _activeTrajectory!.targetY;
       _pose = _sectionsReached == TreeClimberEconomy.sectionCount
           ? TreeCatPose.celebrate
           : TreeCatPose.land;
@@ -243,6 +254,7 @@ class _TreeClimberGameState extends State<TreeClimberGame>
       return;
     }
     _jump.reset();
+    _refreshPreview();
     setState(() {
       if (TreeClimberEconomy.isDecisionSection(_sectionsReached) &&
           _sampledSuccess) {
@@ -346,17 +358,28 @@ class _TreeClimberGameState extends State<TreeClimberGame>
                 borderRadius: BorderRadius.circular(24),
                 child: AnimatedBuilder(
                   animation: Listenable.merge([_world, _jump, _camera]),
-                  builder: (_, __) => TreeClimberScene(
-                    worldSeconds: _worldSeconds,
-                    sectionsReached: _sectionsReached,
-                    catX: _catX,
-                    targetX: _liveTargetX,
-                    jumpProgress: _jump.value,
-                    cameraProgress: _camera.value,
-                    jumpSuccess: _sampledSuccess,
-                    pose: _pose,
-                    reduceMotion: widget.reduceMotion,
-                  ),
+                  builder: (_, __) {
+                    final jumping = _phase == _ClimberPhase.jumping;
+                    final section = jumping
+                        ? _activeSection ?? _nextSection
+                        : _nextSection;
+                    return TreeClimberScene(
+                      worldSeconds: _worldSeconds,
+                      sectionsReached: _sectionsReached,
+                      catX: _catX,
+                      section: section,
+                      trajectory: jumping
+                          ? _activeTrajectory
+                          : _previewTrajectory,
+                      showPreview: _phase == _ClimberPhase.ready,
+                      jumpProgress: _jump.value,
+                      cameraProgress: _camera.value,
+                      cameraStartY: _cameraStartY,
+                      jumpSuccess: _sampledSuccess,
+                      pose: _pose,
+                      reduceMotion: widget.reduceMotion,
+                    );
+                  },
                 ),
               ),
             ),
@@ -377,6 +400,7 @@ class _TreeClimberGameState extends State<TreeClimberGame>
                 ),
               ),
             ),
+            if (_phase != _ClimberPhase.decision) _aimControls(compact),
             if (_phase == _ClimberPhase.decision)
               _decisionButtons(compact)
             else
@@ -391,7 +415,7 @@ class _TreeClimberGameState extends State<TreeClimberGame>
                         ? 'KATZE SPRINGT …'
                         : _phase == _ClimberPhase.feedback
                         ? 'PFOTEN LANDEN …'
-                        : 'SPRINGEN',
+                        : 'SPRINGEN!',
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFF2B45F),
@@ -420,6 +444,102 @@ class _TreeClimberGameState extends State<TreeClimberGame>
         ),
       );
     },
+  );
+
+  Widget _aimControls(bool compact) {
+    final enabled = _phase == _ClimberPhase.ready;
+    return Container(
+      key: const ValueKey('tree-aim-controls'),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 2 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0x66213E39),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x445ED6AE)),
+      ),
+      child: Column(
+        children: [
+          _aimRow(
+            compact: compact,
+            label: compact ? 'WINKEL' : 'SPRUNGWINKEL',
+            valueLabel: '${_angle.round()}°',
+            slider: Slider(
+              key: const ValueKey('tree-angle-slider'),
+              min: TreeClimberPhysics.minAngle,
+              max: TreeClimberPhysics.maxAngle,
+              divisions: 60,
+              value: _angle,
+              onChanged: enabled
+                  ? (value) => setState(() {
+                      _angle = value;
+                      _refreshPreview();
+                    })
+                  : null,
+            ),
+          ),
+          _aimRow(
+            compact: compact,
+            label: compact ? 'KRAFT' : 'SPRUNGKRAFT',
+            valueLabel: '${_power.round()} %',
+            slider: Slider(
+              key: const ValueKey('tree-power-slider'),
+              min: TreeClimberPhysics.minPower,
+              max: TreeClimberPhysics.maxPower,
+              divisions: 70,
+              value: _power,
+              onChanged: enabled
+                  ? (value) => setState(() {
+                      _power = value;
+                      _refreshPreview();
+                    })
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aimRow({
+    required bool compact,
+    required String label,
+    required String valueLabel,
+    required Widget slider,
+  }) => SizedBox(
+    height: compact ? 37 : 43,
+    child: Row(
+      children: [
+        SizedBox(
+          width: compact ? 70 : 82,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFB8E9D4),
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .8,
+            ),
+          ),
+        ),
+        Expanded(child: slider),
+        SizedBox(
+          width: compact ? 43 : 50,
+          child: Text(
+            valueLabel,
+            key: ValueKey('tree-$label-value'),
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: Color(0xFFFFD76B),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 
   Widget _header(bool compact) => Row(
@@ -563,8 +683,16 @@ class _TreeClimberGameState extends State<TreeClimberGame>
                     worldSeconds: 0,
                     sectionsReached: result.sectionsReached,
                     catX: .45,
-                    targetX: .7,
+                    section: const TreeClimberSection(
+                      number: 10,
+                      targetX: .70,
+                      heightGain: .30,
+                      branchWidth: .24,
+                    ),
+                    trajectory: null,
+                    showPreview: false,
                     jumpProgress: 1,
+                    cameraStartY: TreeClimberPhysics.startY,
                     jumpSuccess: true,
                     pose: result.reachedSummit
                         ? TreeCatPose.celebrate

@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../services/tree_climber_system.dart';
+
 enum TreeCatPose { idle, ready, jump, climb, land, slip, celebrate }
 
 class TreeClimberSymbol extends StatelessWidget {
@@ -76,9 +78,12 @@ class TreeClimberScene extends StatelessWidget {
   final double worldSeconds;
   final int sectionsReached;
   final double catX;
-  final double targetX;
+  final TreeClimberSection section;
+  final TreeJumpTrajectory? trajectory;
+  final bool showPreview;
   final double jumpProgress;
   final double cameraProgress;
+  final double cameraStartY;
   final bool jumpSuccess;
   final TreeCatPose pose;
   final bool reduceMotion;
@@ -88,9 +93,12 @@ class TreeClimberScene extends StatelessWidget {
     required this.worldSeconds,
     required this.sectionsReached,
     required this.catX,
-    required this.targetX,
+    required this.section,
+    required this.trajectory,
+    required this.showPreview,
     required this.jumpProgress,
     this.cameraProgress = 1,
+    this.cameraStartY = TreeClimberPhysics.startY,
     required this.jumpSuccess,
     required this.pose,
     required this.reduceMotion,
@@ -103,9 +111,12 @@ class TreeClimberScene extends StatelessWidget {
         worldSeconds: worldSeconds,
         sectionsReached: sectionsReached,
         catX: catX,
-        targetX: targetX,
+        section: section,
+        trajectory: trajectory,
+        showPreview: showPreview,
         jumpProgress: jumpProgress,
         cameraProgress: cameraProgress,
+        cameraStartY: cameraStartY,
         jumpSuccess: jumpSuccess,
         pose: pose,
         reduceMotion: reduceMotion,
@@ -119,9 +130,12 @@ class _TreeScenePainter extends CustomPainter {
   final double worldSeconds;
   final int sectionsReached;
   final double catX;
-  final double targetX;
+  final TreeClimberSection section;
+  final TreeJumpTrajectory? trajectory;
+  final bool showPreview;
   final double jumpProgress;
   final double cameraProgress;
+  final double cameraStartY;
   final bool jumpSuccess;
   final TreeCatPose pose;
   final bool reduceMotion;
@@ -130,9 +144,12 @@ class _TreeScenePainter extends CustomPainter {
     required this.worldSeconds,
     required this.sectionsReached,
     required this.catX,
-    required this.targetX,
+    required this.section,
+    required this.trajectory,
+    required this.showPreview,
     required this.jumpProgress,
     required this.cameraProgress,
+    required this.cameraStartY,
     required this.jumpSuccess,
     required this.pose,
     required this.reduceMotion,
@@ -156,6 +173,9 @@ class _TreeScenePainter extends CustomPainter {
     _paintTree(canvas, size);
     _paintAmbientLife(canvas, size);
     _paintBranches(canvas, size);
+    if (showPreview && trajectory != null) {
+      _paintTrajectoryPreview(canvas, size, trajectory!);
+    }
     _paintHero(canvas, size);
     if (sectionsReached >= 9) _paintSummitFriend(canvas, size);
   }
@@ -252,12 +272,35 @@ class _TreeScenePainter extends CustomPainter {
   }
 
   void _paintBranches(Canvas canvas, Size size) {
-    final currentY = ui.lerpDouble(.38, .75, cameraProgress)!;
-    final targetY = ui.lerpDouble(.08, .38, cameraProgress)!;
-    _branch(canvas, size, catX, currentY, current: true);
-    _branch(canvas, size, targetX, targetY, target: true);
-    _branch(canvas, size, .24 + (sectionsReached % 3) * .17, targetY - .30);
-    _branch(canvas, size, .78 - (sectionsReached % 2) * .44, targetY - .58);
+    final currentY = ui.lerpDouble(
+      cameraStartY,
+      TreeClimberPhysics.startY,
+      cameraProgress,
+    )!;
+    final targetY = currentY - section.heightGain;
+    _branch(canvas, size, catX, currentY, width: .34, current: true);
+    _branch(
+      canvas,
+      size,
+      section.targetX,
+      targetY,
+      width: section.branchWidth,
+      target: true,
+    );
+    _branch(
+      canvas,
+      size,
+      .24 + (sectionsReached % 3) * .17,
+      targetY - .28,
+      width: .18,
+    );
+    _branch(
+      canvas,
+      size,
+      .78 - (sectionsReached % 2) * .44,
+      targetY - .52,
+      width: .16,
+    );
   }
 
   void _branch(
@@ -265,35 +308,37 @@ class _TreeScenePainter extends CustomPainter {
     Size size,
     double x,
     double y, {
+    required double width,
     bool current = false,
     bool target = false,
   }) {
     if (y < -.05 || y > 1.05) return;
     final center = Offset(size.width * x, size.height * y);
-    final left = x < .54;
-    final trunkX = size.width * .55;
-    final endX = center.dx + (left ? -size.width * .19 : size.width * .19);
+    final halfWidth = size.width * width / 2;
+    final start = center.translate(-halfWidth, 0);
+    final end = center.translate(halfWidth, 0);
+    final nearestEnd = x < .55 ? end : start;
+    final trunk = Offset(size.width * .55, center.dy + 8);
     final branch = Paint()
       ..color = current ? const Color(0xFF8A5938) : const Color(0xFF6F472F)
       ..strokeWidth = current ? 18 : 15
       ..strokeCap = StrokeCap.round;
+    canvas.drawLine(trunk, nearestEnd, branch..strokeWidth = 10);
+    canvas.drawLine(start, end, branch..strokeWidth = current ? 18 : 15);
     canvas.drawLine(
-      Offset(trunkX, center.dy + 9),
-      Offset(endX, center.dy),
-      branch,
-    );
-    canvas.drawLine(
-      Offset(trunkX, center.dy + 7),
-      Offset(endX, center.dy - 3),
+      start.translate(2, -3),
+      end.translate(-2, -3),
       Paint()
         ..color = const Color(0x55F5D49C)
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round,
     );
     if (target) {
-      canvas.drawCircle(
-        center,
-        22,
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: center, width: halfWidth * 2 + 8, height: 28),
+          const Radius.circular(16),
+        ),
         Paint()
           ..color = const Color(0x55FFF0A0)
           ..style = PaintingStyle.stroke
@@ -302,12 +347,40 @@ class _TreeScenePainter extends CustomPainter {
       final leafPaint = Paint()..color = const Color(0xFF69A75C);
       canvas.drawOval(
         Rect.fromCenter(
-          center: center.translate(left ? -19 : 19, -14),
+          center: center.translate(x < .55 ? -halfWidth : halfWidth, -14),
           width: 25,
           height: 13,
         ),
         leafPaint,
       );
+    }
+  }
+
+  void _paintTrajectoryPreview(
+    Canvas canvas,
+    Size size,
+    TreeJumpTrajectory preview,
+  ) {
+    final points = preview.previewPoints(27);
+    final glowColor = preview.landsOnBranch
+        ? const Color(0xFFFFE08A)
+        : const Color(0xFFBDEDE0);
+    for (var index = 0; index < points.length; index += 2) {
+      final point = points[index];
+      if (point.dx < -.05 ||
+          point.dx > 1.05 ||
+          point.dy < -.08 ||
+          point.dy > 1.08) {
+        continue;
+      }
+      final center = Offset(point.dx * size.width, point.dy * size.height);
+      final radius = index == points.length - 1 ? 4.0 : 2.5;
+      canvas.drawCircle(
+        center,
+        radius + 4,
+        Paint()..color = glowColor.withValues(alpha: .12),
+      );
+      canvas.drawCircle(center, radius, Paint()..color = glowColor);
     }
   }
 
@@ -345,14 +418,28 @@ class _TreeScenePainter extends CustomPainter {
 
   void _paintHero(Canvas canvas, Size size) {
     var x = catX;
-    var y = ui.lerpDouble(.32, .69, cameraProgress)!;
+    var branchY = ui.lerpDouble(
+      cameraStartY,
+      TreeClimberPhysics.startY,
+      cameraProgress,
+    )!;
+    var y = branchY - .055;
     var currentPose = pose;
-    if (pose == TreeCatPose.jump || pose == TreeCatPose.climb) {
-      final t = Curves.easeInOut.transform(jumpProgress.clamp(0, 1));
-      final destination = jumpSuccess ? targetX : (catX + targetX) / 2;
-      x = ui.lerpDouble(catX, destination, t)!;
-      y = ui.lerpDouble(.69, jumpSuccess ? .32 : .50, t)! - sin(pi * t) * .14;
-      currentPose = t > .72 ? TreeCatPose.climb : TreeCatPose.jump;
+    if ((pose == TreeCatPose.jump || pose == TreeCatPose.climb) &&
+        trajectory != null) {
+      const crouchShare = .10;
+      if (jumpProgress <= crouchShare) {
+        currentPose = TreeCatPose.ready;
+      } else {
+        final physicsProgress =
+            ((jumpProgress - crouchShare) / (1 - crouchShare)).clamp(0.0, 1.0);
+        final point = trajectory!.positionAtProgress(physicsProgress);
+        x = point.dx;
+        y = point.dy - .055;
+        currentPose = physicsProgress > .78 && jumpSuccess
+            ? TreeCatPose.climb
+            : TreeCatPose.jump;
+      }
     } else if (pose == TreeCatPose.slip) {
       y += sin(pi * jumpProgress.clamp(0, 1)) * .09;
     }
@@ -402,9 +489,12 @@ class _TreeScenePainter extends CustomPainter {
       old.worldSeconds != worldSeconds ||
       old.sectionsReached != sectionsReached ||
       old.catX != catX ||
-      old.targetX != targetX ||
+      old.section != section ||
+      old.trajectory != trajectory ||
+      old.showPreview != showPreview ||
       old.jumpProgress != jumpProgress ||
       old.cameraProgress != cameraProgress ||
+      old.cameraStartY != cameraStartY ||
       old.pose != pose;
 }
 

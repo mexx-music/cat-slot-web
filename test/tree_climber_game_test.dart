@@ -2,6 +2,7 @@ import 'package:catslot/features/cat_slot/bonus/tree_climber_game.dart';
 import 'package:catslot/features/cat_slot/data/bonus_games.dart';
 import 'package:catslot/features/cat_slot/models/bonus_game.dart';
 import 'package:catslot/features/cat_slot/services/tree_climber_system.dart';
+import 'package:catslot/features/cat_slot/widgets/tree_climber_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,21 +11,20 @@ const _session = BonusGameSession(
   game: kTreeClimberDefinition,
 );
 
-TreeClimberCourse _course({double x = .5, double reach = .2}) =>
-    TreeClimberCourse(
-      seed: 7,
-      sections: [
-        for (var i = 1; i <= 10; i++)
-          TreeClimberSection(
-            number: i,
-            baseX: x,
-            swayAmplitude: 0,
-            swaySpeed: 0,
-            phase: 0,
-            reachWindow: reach,
-          ),
-      ],
+TreeClimberCourse _course({bool miss = false}) {
+  final sections = <TreeClimberSection>[];
+  for (var i = 1; i <= 10; i++) {
+    sections.add(
+      TreeClimberSection(
+        number: i,
+        targetX: miss ? (i.isOdd ? .9 : .1) : (i.isOdd ? .8 : .5),
+        heightGain: .26,
+        branchWidth: miss ? .02 : .20,
+      ),
     );
+  }
+  return TreeClimberCourse(seed: 7, sections: sections);
+}
 
 void main() {
   Future<void> pumpGame(
@@ -121,7 +121,7 @@ void main() {
     TreeClimberResult? completed;
     await pumpGame(
       tester,
-      course: _course(x: .9, reach: .05),
+      course: _course(miss: true),
       onResult: (result) => completed = result,
     );
 
@@ -148,6 +148,54 @@ void main() {
     await tester.pump();
 
     expect(find.text('1/10'), findsOneWidget);
+  });
+
+  testWidgets('angle and power sliders update the visible preview', (
+    tester,
+  ) async {
+    await pumpGame(tester, onResult: (_) {});
+    final before = tester.widget<TreeClimberScene>(
+      find.byType(TreeClimberScene),
+    );
+    final beforeVelocity = before.trajectory!.velocity;
+
+    final angle = tester.getRect(
+      find.byKey(const ValueKey('tree-angle-slider')),
+    );
+    final power = tester.getRect(
+      find.byKey(const ValueKey('tree-power-slider')),
+    );
+    await tester.tapAt(Offset(angle.left + 20, angle.center.dy));
+    await tester.pump();
+    await tester.tapAt(Offset(power.right - 20, power.center.dy));
+    await tester.pump();
+
+    final after = tester.widget<TreeClimberScene>(
+      find.byType(TreeClimberScene),
+    );
+    expect(after.trajectory!.velocity, isNot(beforeVelocity));
+    expect(find.textContaining('°'), findsOneWidget);
+    expect(find.textContaining('%'), findsOneWidget);
+  });
+
+  testWidgets('jump captures exactly the trajectory shown in preview', (
+    tester,
+  ) async {
+    await pumpGame(tester, onResult: (_) {});
+    final preview = tester
+        .widget<TreeClimberScene>(find.byType(TreeClimberScene))
+        .trajectory!;
+
+    await tester.tap(find.byKey(const ValueKey('tree-jump')));
+    await tester.pump(const Duration(milliseconds: 20));
+    final actual = tester
+        .widget<TreeClimberScene>(find.byType(TreeClimberScene))
+        .trajectory!;
+
+    expect(actual.start, preview.start);
+    expect(actual.velocity, preview.velocity);
+    expect(actual.flightTime, preview.flightTime);
+    expect(actual.landsOnBranch, preview.landsOnBranch);
   });
 
   testWidgets('pause safely resolves an in-flight jump without duplication', (

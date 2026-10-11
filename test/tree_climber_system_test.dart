@@ -47,30 +47,77 @@ void main() {
       for (var i = 0; i < first.sections.length; i++) {
         final a = first.sections[i];
         final b = second.sections[i];
-        expect(a.baseX, b.baseX);
-        expect(a.swayAmplitude, b.swayAmplitude);
-        expect(a.swaySpeed, b.swaySpeed);
-        expect(a.phase, b.phase);
-        expect(a.reachWindow, b.reachWindow);
+        expect(a.targetX, b.targetX);
+        expect(a.heightGain, b.heightGain);
+        expect(a.branchWidth, b.branchWidth);
       }
-      expect(first.sections[0].swayAmplitude, 0);
-      expect(first.sections[4].swayAmplitude, greaterThan(0));
       expect(
-        first.sections[9].reachWindow,
-        lessThan(first.sections[0].reachWindow),
+        first.sections[9].branchWidth,
+        lessThan(first.sections[0].branchWidth),
+      );
+      expect(
+        first.sections[9].heightGain,
+        greaterThan(first.sections[0].heightGain),
       );
     },
   );
 
-  test('hit decision uses visible normalized positions without chance', () {
-    expect(
-      TreeClimberRules.canReach(catX: .5, branchX: .69, reachWindow: .2),
-      isTrue,
+  test('landing is derived only from the visible projectile geometry', () {
+    const section = TreeClimberSection(
+      number: 1,
+      targetX: .70,
+      heightGain: .26,
+      branchWidth: .20,
     );
-    expect(
-      TreeClimberRules.canReach(catX: .5, branchX: .71, reachWindow: .2),
-      isFalse,
+    final solution = TreeClimberPhysics.findSolution(
+      startX: .5,
+      section: section,
     );
+    expect(solution, isNotNull);
+    final hit = TreeClimberPhysics.trajectoryFor(
+      startX: .5,
+      section: section,
+      angleDegrees: solution!.angleDegrees,
+      powerPercent: solution.powerPercent,
+    );
+    expect(hit.landsOnBranch, isTrue);
+    expect(hit.positionAtProgress(1).dx, hit.impactX);
+    expect(hit.positionAtProgress(1).dy, closeTo(hit.targetY, 1e-9));
+    expect((hit.impactX - section.targetX).abs(), lessThanOrEqualTo(.10));
+
+    final miss = TreeClimberPhysics.trajectoryFor(
+      startX: .5,
+      section: section,
+      angleDegrees: TreeClimberPhysics.minAngle,
+      powerPercent: TreeClimberPhysics.minPower,
+    );
+    expect(miss.landsOnBranch, isFalse);
+  });
+
+  test('all ten sections remain solvable across generated courses', () {
+    for (var seed = 0; seed < 120; seed++) {
+      final course = TreeClimberCourse.generate(seed: seed);
+      var startX = .5;
+      for (final section in course.sections) {
+        final solution = TreeClimberPhysics.findSolution(
+          startX: startX,
+          section: section,
+        );
+        expect(
+          solution,
+          isNotNull,
+          reason: 'seed $seed section ${section.number}',
+        );
+        final trajectory = TreeClimberPhysics.trajectoryFor(
+          startX: startX,
+          section: section,
+          angleDegrees: solution!.angleDegrees,
+          powerPercent: solution.powerPercent,
+        );
+        expect(trajectory.landsOnBranch, isTrue);
+        startX = section.targetX;
+      }
+    }
   });
 
   test('checkpoint points and summit conversion stay centrally configured', () {

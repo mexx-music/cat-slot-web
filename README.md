@@ -127,15 +127,14 @@ Die bestehende Spielmathematik ist bewusst unverändert:
 - Das stabile Symbol `bonus_tree_climber` kann auf allen neun sichtbaren
   Rollenpositionen erscheinen. Drei frei verteilte Symbole starten das Spiel;
   einzelne Symbole füllen den persistenten `BAUMKATZE 0/3`-Sammler.
-- Die Katze klettert über zehn Abschnitte. Abschnitt 1–2 führt mit großen,
-  ruhigen Treffern ein, 3–4 ergänzt leichtes Schwingen, 5–6 bewegt die Äste
-  deutlich, 7–8 verengt das Zeitfenster und 9–10 bildet die schnellere
-  Gipfelpassage. Strecke und Bewegung werden reproduzierbar aus einem Seed
-  erzeugt.
-- Ein Sprung wird ausschließlich aus der sichtbaren, normalisierten Position
-  von Katze und Ast beim Tastendruck bewertet. Es gibt keine versteckte
-  Trefferchance. Die Fenster sinken zentral konfiguriert von 0,40 auf 0,20 der
-  Szenenbreite.
+- Die Katze klettert über zehn statische, klar lesbare Abschnitte. Der Spieler
+  stellt vor jedem Sprung den Winkel von 20–80 Grad und die Kraft von 30–100 %
+  ein. Die Äste werden schrittweise höher, weiter entfernt und schmaler; jeder
+  aus einem Seed erzeugte Abschnitt wird automatisch auf Lösbarkeit geprüft.
+- Eine gepunktete Vorschau und der anschließende Sprung verwenden exakt
+  dieselbe ballistische Flugbahn. Die Landung wird ausschließlich aus dem
+  geometrischen Schnittpunkt mit der sichtbaren Astbreite berechnet. Es gibt
+  weder eine versteckte Trefferchance noch eine nachträgliche Korrektur.
 - Die Katze besitzt Idle-, Ready-, Jump-, Climb-, Land-, Slip- und
   Celebrate-Zustände. Baum, Äste, Blätter, Sonnenstrahlen, Schmetterling,
   Hauptkatze und Gipfelkatze werden als skalierbare Flutter-Zeichnungen ohne

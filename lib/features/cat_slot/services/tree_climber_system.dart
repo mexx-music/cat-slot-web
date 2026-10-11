@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 class TreeClimberEconomy {
   const TreeClimberEconomy._();
@@ -77,26 +78,16 @@ class TreeClimberSymbolPolicy {
 
 class TreeClimberSection {
   final int number;
-  final double baseX;
-  final double swayAmplitude;
-  final double swaySpeed;
-  final double phase;
-  final double reachWindow;
+  final double targetX;
+  final double heightGain;
+  final double branchWidth;
 
   const TreeClimberSection({
     required this.number,
-    required this.baseX,
-    required this.swayAmplitude,
-    required this.swaySpeed,
-    required this.phase,
-    required this.reachWindow,
+    required this.targetX,
+    required this.heightGain,
+    required this.branchWidth,
   });
-
-  double xAt(double worldSeconds) =>
-      (baseX + sin(worldSeconds * swaySpeed + phase) * swayAmplitude).clamp(
-        .12,
-        .88,
-      );
 }
 
 class TreeClimberCourse {
@@ -108,34 +99,163 @@ class TreeClimberCourse {
 
   factory TreeClimberCourse.generate({required int seed}) {
     final random = Random(seed);
-    return TreeClimberCourse(
-      seed: seed,
-      sections: List.generate(TreeClimberEconomy.sectionCount, (index) {
-        final section = index + 1;
-        final tier = (index ~/ 2).clamp(0, 4);
-        const amplitudes = [0.0, .045, .105, .145, .18];
-        const speeds = [0.0, .45, .78, 1.05, 1.30];
-        const windows = [.40, .34, .285, .235, .20];
-        final side = section.isEven ? -1.0 : 1.0;
-        return TreeClimberSection(
-          number: section,
-          baseX: .5 + side * (.09 + random.nextDouble() * .055),
-          swayAmplitude: amplitudes[tier],
-          swaySpeed: speeds[tier] * (.9 + random.nextDouble() * .2),
-          phase: random.nextDouble() * pi * 2,
-          reachWindow: windows[tier],
+    const distances = [.18, .20, .24, .27, .30, .33, .36, .39, .42, .45];
+    const heights = [.26, .28, .30, .32, .35, .37, .38, .39, .40, .41];
+    const widths = [.40, .36, .29, .27, .24, .22, .18, .16, .13, .11];
+    var currentX = .5;
+    final sections = <TreeClimberSection>[];
+    for (var index = 0; index < TreeClimberEconomy.sectionCount; index++) {
+      final direction = index.isEven ? 1.0 : -1.0;
+      final distance = distances[index] + (random.nextDouble() - .5) * .012;
+      final targetX = (currentX + direction * distance).clamp(.10, .90);
+      final section = TreeClimberSection(
+        number: index + 1,
+        targetX: targetX,
+        heightGain: heights[index] + (random.nextDouble() - .5) * .008,
+        branchWidth: widths[index],
+      );
+      if (TreeClimberPhysics.findSolution(startX: currentX, section: section) ==
+          null) {
+        throw StateError(
+          'Generated unreachable Tree Climber section ${index + 1}',
         );
-      }, growable: false),
-    );
+      }
+      sections.add(section);
+      currentX = targetX;
+    }
+    return TreeClimberCourse(seed: seed, sections: List.unmodifiable(sections));
   }
 }
 
-class TreeClimberRules {
-  const TreeClimberRules._();
+class TreeJumpSettings {
+  final double angleDegrees;
+  final double powerPercent;
 
-  static bool canReach({
-    required double catX,
-    required double branchX,
-    required double reachWindow,
-  }) => (catX - branchX).abs() <= reachWindow;
+  const TreeJumpSettings({
+    required this.angleDegrees,
+    required this.powerPercent,
+  });
+}
+
+class TreeJumpTrajectory {
+  final Offset start;
+  final Offset velocity;
+  final double gravity;
+  final double flightTime;
+  final double? branchCrossingTime;
+  final double impactX;
+  final double targetY;
+  final bool landsOnBranch;
+
+  const TreeJumpTrajectory({
+    required this.start,
+    required this.velocity,
+    required this.gravity,
+    required this.flightTime,
+    required this.branchCrossingTime,
+    required this.impactX,
+    required this.targetY,
+    required this.landsOnBranch,
+  });
+
+  Offset positionAtTime(double time) => Offset(
+    start.dx + velocity.dx * time,
+    start.dy + velocity.dy * time + .5 * gravity * time * time,
+  );
+
+  Offset positionAtProgress(double progress) =>
+      positionAtTime(flightTime * progress.clamp(0, 1));
+
+  List<Offset> previewPoints([int count = 24]) => [
+    for (var i = 0; i < count; i++) positionAtProgress(i / max(1, count - 1)),
+  ];
+}
+
+class TreeClimberPhysics {
+  const TreeClimberPhysics._();
+
+  static const double minAngle = 20;
+  static const double maxAngle = 80;
+  static const double minPower = 30;
+  static const double maxPower = 100;
+  static const double gravity = 2.4;
+  static const double startY = .72;
+
+  static double speedForPower(double powerPercent) =>
+      .75 + powerPercent.clamp(minPower, maxPower) * .0095;
+
+  static TreeJumpTrajectory trajectoryFor({
+    required double startX,
+    required TreeClimberSection section,
+    required double angleDegrees,
+    required double powerPercent,
+  }) {
+    final angle = angleDegrees.clamp(minAngle, maxAngle) * pi / 180;
+    final speed = speedForPower(powerPercent);
+    final direction = section.targetX >= startX ? 1.0 : -1.0;
+    final velocity = Offset(
+      cos(angle) * speed * direction,
+      -sin(angle) * speed,
+    );
+    final targetY = startY - section.heightGain;
+    final discriminant =
+        velocity.dy * velocity.dy - 2 * gravity * (startY - targetY);
+    double? crossingTime;
+    if (discriminant >= 0) {
+      crossingTime = (-velocity.dy + sqrt(discriminant)) / gravity;
+    }
+    final impactX = crossingTime == null
+        ? double.nan
+        : startX + velocity.dx * crossingTime;
+    final lands =
+        crossingTime != null &&
+        (impactX - section.targetX).abs() <= section.branchWidth / 2;
+    final returnTime = max(.35, -2 * velocity.dy / gravity);
+    final flightTime = lands
+        ? crossingTime
+        : crossingTime == null
+        ? returnTime
+        : min(returnTime, crossingTime + .26);
+    return TreeJumpTrajectory(
+      start: Offset(startX, startY),
+      velocity: velocity,
+      gravity: gravity,
+      flightTime: flightTime,
+      branchCrossingTime: crossingTime,
+      impactX: impactX,
+      targetY: targetY,
+      landsOnBranch: lands,
+    );
+  }
+
+  static TreeJumpSettings? findSolution({
+    required double startX,
+    required TreeClimberSection section,
+  }) {
+    TreeJumpSettings? best;
+    var bestScore = double.infinity;
+    for (var power = minPower.toInt(); power <= maxPower; power++) {
+      for (var angle = minAngle.toInt(); angle <= maxAngle; angle++) {
+        final trajectory = trajectoryFor(
+          startX: startX,
+          section: section,
+          angleDegrees: angle.toDouble(),
+          powerPercent: power.toDouble(),
+        );
+        if (!trajectory.landsOnBranch) continue;
+        final score =
+            (trajectory.impactX - section.targetX).abs() * 100 +
+            (angle - 60).abs() * .01 +
+            (power - 75).abs() * .005;
+        if (score < bestScore) {
+          bestScore = score;
+          best = TreeJumpSettings(
+            angleDegrees: angle.toDouble(),
+            powerPercent: power.toDouble(),
+          );
+        }
+      }
+    }
+    return best;
+  }
 }
