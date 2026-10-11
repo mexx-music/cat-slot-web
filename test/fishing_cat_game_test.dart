@@ -28,30 +28,44 @@ void main() {
     required ValueChanged<FishingCatResult> onResult,
     Size size = const Size(390, 844),
     bool reduceMotion = true,
+    Duration feedbackDuration = Duration.zero,
+    Duration recoveryGrace = const Duration(milliseconds: 80),
+    ValueNotifier<bool>? tickerEnabled,
+    BonusGameSession session = _session,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
+    final game = FishingCatGame(
+      key: ValueKey(session.transactionId),
+      session: session,
+      onRoundCompleted: (result) async => onResult(result),
+      onExit: () {},
+      reduceMotion: reduceMotion,
+      castDuration: const Duration(milliseconds: 200),
+      feedbackDuration: feedbackDuration,
+      castRecoveryGrace: recoveryGrace,
+      encounters: [
+        for (var i = 0; i < 5; i++)
+          [
+            _target(
+              kinds[i] ?? FishingCatchKind.small,
+              hittable: kinds[i] != null,
+            ),
+          ],
+      ],
+    );
     await tester.pumpWidget(
       MaterialApp(
-        home: FishingCatGame(
-          session: _session,
-          onRoundCompleted: (result) async => onResult(result),
-          onExit: () {},
-          reduceMotion: reduceMotion,
-          castDuration: const Duration(milliseconds: 200),
-          feedbackDuration: Duration.zero,
-          encounters: [
-            for (var i = 0; i < 5; i++)
-              [
-                _target(
-                  kinds[i] ?? FishingCatchKind.small,
-                  hittable: kinds[i] != null,
-                ),
-              ],
-          ],
-        ),
+        home: tickerEnabled == null
+            ? game
+            : ValueListenableBuilder<bool>(
+                valueListenable: tickerEnabled,
+                builder: (_, enabled, child) =>
+                    TickerMode(enabled: enabled, child: child!),
+                child: game,
+              ),
       ),
     );
     await tester.pump();
@@ -119,6 +133,117 @@ void main() {
     expect(completed!.skipped, isTrue);
   });
 
+  testWidgets('feedback phase blocks the next cast and stale timer race', (
+    tester,
+  ) async {
+    await pumpGame(
+      tester,
+      kinds: const [
+        FishingCatchKind.big,
+        FishingCatchKind.big,
+        null,
+        null,
+        null,
+      ],
+      onResult: (_) {},
+      reduceMotion: false,
+      feedbackDuration: const Duration(milliseconds: 400),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('cast-fishing-line')));
+    await tester.pump();
+    for (var frame = 0; frame < 5; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final feedbackButton = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('cast-fishing-line')),
+    );
+    expect(feedbackButton.onPressed, isNull);
+    expect(find.text('FANG WIRD GEWERTET …'), findsOneWidget);
+    expect(find.text('2/5'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 401));
+    expect(find.text('ANGEL AUSWERFEN'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('cast-fishing-line')));
+    await tester.pump();
+    for (var frame = 0; frame < 5; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('3/5'), findsOneWidget);
+    expect(find.text('200 P'), findsOneWidget);
+  });
+
+  testWidgets(
+    'guard completes a cast when Safari ticker stops producing frames',
+    (tester) async {
+      final tickerEnabled = ValueNotifier(true);
+      addTearDown(tickerEnabled.dispose);
+      await pumpGame(
+        tester,
+        kinds: const [FishingCatchKind.golden, null, null, null, null],
+        onResult: (_) {},
+        tickerEnabled: tickerEnabled,
+        recoveryGrace: const Duration(milliseconds: 80),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('cast-fishing-line')));
+      await tester.pump();
+      tickerEnabled.value = false;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 281));
+      await tester.pump(const Duration(milliseconds: 1));
+
+      expect(find.text('2/5'), findsOneWidget);
+      expect(find.text('250 P'), findsOneWidget);
+      expect(find.text('ANGEL AUSWERFEN'), findsOneWidget);
+
+      tickerEnabled.value = true;
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('2/5'), findsOneWidget);
+      expect(find.text('250 P'), findsOneWidget);
+    },
+  );
+
+  testWidgets('three complete five-cast rounds never duplicate attempts', (
+    tester,
+  ) async {
+    final results = <FishingCatResult>[];
+    for (var round = 0; round < 3; round++) {
+      await pumpGame(
+        tester,
+        session: BonusGameSession(
+          transactionId: 'fishing-repeat-$round',
+          game: kFishingCatDefinition,
+        ),
+        kinds: const [
+          FishingCatchKind.small,
+          null,
+          FishingCatchKind.boot,
+          FishingCatchKind.colorful,
+          null,
+        ],
+        onResult: results.add,
+      );
+      for (var attempt = 0; attempt < 5; attempt++) {
+        await tester.tap(find.byKey(const ValueKey('cast-fishing-line')));
+        await tester.pump();
+        for (var frame = 0; frame < 5; frame++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      await tester.pump();
+    }
+
+    expect(results, hasLength(3));
+    for (final result in results) {
+      expect(result.attemptsCompleted, 5);
+      expect(result.pointsWon, 70);
+      expect(result.catches.values.fold<int>(0, (a, b) => a + b), 3);
+    }
+  });
+
   testWidgets('compact phone and tablet layouts have no overflow', (
     tester,
   ) async {
@@ -155,7 +280,9 @@ void main() {
     expect(find.text('1/5'), findsOneWidget);
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('1/5'), findsOneWidget);
+    expect(find.text('ANGEL AUSWERFEN'), findsOneWidget);
     expect(find.byKey(const ValueKey('cast-fishing-line')), findsOneWidget);
   });
 }

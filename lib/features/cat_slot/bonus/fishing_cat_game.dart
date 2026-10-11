@@ -10,6 +10,8 @@ import '../widgets/fishing_cat_art.dart';
 
 typedef FishingCatCompletion = Future<void> Function(FishingCatResult result);
 
+enum _FishingRoundPhase { ready, casting, feedback, finishing, complete }
+
 class FishingCatGame extends StatefulWidget {
   final BonusGameSession session;
   final FishingCatCompletion onRoundCompleted;
@@ -19,6 +21,7 @@ class FishingCatGame extends StatefulWidget {
   final List<List<FishingTarget>>? encounters;
   final Duration castDuration;
   final Duration feedbackDuration;
+  final Duration castRecoveryGrace;
 
   const FishingCatGame({
     super.key,
@@ -30,6 +33,7 @@ class FishingCatGame extends StatefulWidget {
     this.encounters,
     this.castDuration = const Duration(milliseconds: 1250),
     this.feedbackDuration = const Duration(milliseconds: 650),
+    this.castRecoveryGrace = const Duration(milliseconds: 700),
   });
 
   @override
@@ -44,16 +48,29 @@ class _FishingCatGameState extends State<FishingCatGame>
   final Map<FishingCatchKind, int> _catches = {};
   int _attempt = 0;
   int _points = 0;
-  bool _casting = false;
-  bool _finishing = false;
+  _FishingRoundPhase _phase = _FishingRoundPhase.ready;
+  int _castGeneration = 0;
+  double _lastSampledCastValue = 0;
   FishingTarget? _caught;
   FishingCatPose _pose = FishingCatPose.idle;
   String _message = 'Beobachte die Fische und wirf im richtigen Moment aus.';
   FishingCatResult? _result;
   Timer? _feedbackTimer;
+  Timer? _castRecoveryTimer;
 
   double get _worldTime => _world.value * 3600;
-  double get _hookY => .18 + sin(pi * _cast.value) * .70;
+  bool get _casting => _phase == _FishingRoundPhase.casting;
+  bool get _finishing => _phase == _FishingRoundPhase.finishing;
+  bool get _inputLocked => _phase != _FishingRoundPhase.ready;
+  String get _buttonLabel => switch (_phase) {
+    _FishingRoundPhase.casting => 'ANGEL UNTERWEGS …',
+    _FishingRoundPhase.feedback => 'FANG WIRD GEWERTET …',
+    _FishingRoundPhase.finishing => 'ERGEBNIS WIRD GESICHERT …',
+    _ => 'ANGEL AUSWERFEN',
+  };
+
+  double _hookYAt(double castValue) =>
+      .18 + sin(pi * castValue.clamp(0, 1)) * .70;
 
   @override
   void initState() {
@@ -82,25 +99,50 @@ class _FishingCatGameState extends State<FishingCatGame>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!_world.isAnimating && _result == null) _world.forward();
+      if (_phase == _FishingRoundPhase.feedback) {
+        _advance(_castGeneration);
+      }
       return;
     }
     _world.stop();
+    _castRecoveryTimer?.cancel();
     if (_casting) {
+      _castGeneration++;
       _cast.stop();
       _cast.reset();
-      _casting = false;
-      _caught = null;
-      _pose = FishingCatPose.alert;
-      _message = 'Die Angel wartet sicher auf deine Rückkehr.';
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {
+          _phase = _FishingRoundPhase.ready;
+          _caught = null;
+          _pose = FishingCatPose.alert;
+          _message = 'Die Angel wartet sicher auf deine Rückkehr.';
+        });
+      }
+    } else if (_phase == _FishingRoundPhase.feedback) {
+      // The attempt is already resolved and must not be scored again. The next
+      // round is prepared once the app is visible again.
+      _feedbackTimer?.cancel();
     }
   }
 
   void _onFrame() {
     if (!mounted || _result != null) return;
-    if (_casting && _caught == null && _cast.value <= .58) {
+    if (_casting) {
+      _sampleCollision(_lastSampledCastValue, _cast.value);
+      _lastSampledCastValue = _cast.value;
+    }
+  }
+
+  void _sampleCollision(double from, double to) {
+    if (_caught != null || to < from) return;
+    // Sweep the hook path in small deterministic increments. This prevents a
+    // low Safari frame rate from tunnelling through a small fish.
+    final steps = max(1, ((to - from) / .018).ceil());
+    for (var step = 1; step <= steps; step++) {
+      final value = from + (to - from) * step / steps;
+      if (value > .58) break;
       final caught = FishingCollision.catchAt(
-        hook: Offset(.68, _hookY),
+        hook: Offset(.68, _hookYAt(value)),
         targets: _encounters[_attempt],
         worldTime: _worldTime,
       );
@@ -112,25 +154,61 @@ class _FishingCatGameState extends State<FishingCatGame>
               : FishingCatPose.pull;
         });
         HapticFeedback.selectionClick();
+        return;
       }
     }
   }
 
   void _castLine() {
-    if (_casting || _result != null || _finishing) return;
+    if (_phase != _FishingRoundPhase.ready || _result != null) return;
+    _feedbackTimer?.cancel();
+    final generation = ++_castGeneration;
     setState(() {
-      _casting = true;
+      _phase = _FishingRoundPhase.casting;
+      _lastSampledCastValue = 0;
       _caught = null;
       _pose = FishingCatPose.cast;
       _message = 'Surr … die Angel fliegt!';
     });
     HapticFeedback.lightImpact();
     _cast.forward(from: 0);
+    _castRecoveryTimer?.cancel();
+    _castRecoveryTimer = Timer(
+      widget.castDuration + widget.castRecoveryGrace,
+      () => _recoverStalledCast(generation),
+    );
   }
 
   void _onCastStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed || !_casting) return;
-    _casting = false;
+    if (status == AnimationStatus.completed) {
+      _resolveCast(_castGeneration);
+    }
+  }
+
+  void _recoverStalledCast(int generation) {
+    if (!mounted ||
+        _phase != _FishingRoundPhase.casting ||
+        generation != _castGeneration) {
+      return;
+    }
+    // This is a guarded completion, not a blind reset: only the still-active
+    // cast generation may recover, after its animation deadline was exceeded.
+    // The complete hook path is sampled before the attempt is resolved.
+    _sampleCollision(_lastSampledCastValue, 1);
+    _lastSampledCastValue = 1;
+    _resolveCast(generation);
+    _cast.stop();
+    _cast.value = 1;
+  }
+
+  void _resolveCast(int generation) {
+    if (!mounted ||
+        _phase != _FishingRoundPhase.casting ||
+        generation != _castGeneration) {
+      return;
+    }
+    _castRecoveryTimer?.cancel();
+    _phase = _FishingRoundPhase.feedback;
     _attempt++;
     final caught = _caught;
     if (caught == null) {
@@ -150,7 +228,7 @@ class _FishingCatGameState extends State<FishingCatGame>
     _feedbackTimer?.cancel();
     _feedbackTimer = Timer(
       widget.reduceMotion ? Duration.zero : widget.feedbackDuration,
-      _advance,
+      () => _advance(generation),
     );
   }
 
@@ -165,14 +243,19 @@ class _FishingCatGameState extends State<FishingCatGame>
     _ => 'Gefangen! +$points Punkte',
   };
 
-  void _advance() {
-    if (!mounted || _finishing) return;
+  void _advance(int generation) {
+    if (!mounted ||
+        _phase != _FishingRoundPhase.feedback ||
+        generation != _castGeneration) {
+      return;
+    }
     if (_attempt >= FishingCatEconomy.attempts) {
       _finish(skipped: false);
       return;
     }
     _cast.reset();
     setState(() {
+      _phase = _FishingRoundPhase.ready;
       _caught = null;
       _pose = FishingCatPose.alert;
       _message = 'Neue Fische nähern sich – Versuch ${_attempt + 1} wartet.';
@@ -180,9 +263,15 @@ class _FishingCatGameState extends State<FishingCatGame>
   }
 
   Future<void> _finish({required bool skipped}) async {
-    if (_finishing || _result != null) return;
-    _finishing = true;
+    if (_finishing ||
+        _phase == _FishingRoundPhase.complete ||
+        _result != null) {
+      return;
+    }
+    _phase = _FishingRoundPhase.finishing;
+    _castGeneration++;
     _feedbackTimer?.cancel();
+    _castRecoveryTimer?.cancel();
     _world.stop();
     _cast.stop();
     final result = FishingCatResult(
@@ -199,7 +288,7 @@ class _FishingCatGameState extends State<FishingCatGame>
     setState(() {
       _result = result;
       _pose = FishingCatPose.celebrate;
-      _finishing = false;
+      _phase = _FishingRoundPhase.complete;
     });
   }
 
@@ -207,6 +296,7 @@ class _FishingCatGameState extends State<FishingCatGame>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _feedbackTimer?.cancel();
+    _castRecoveryTimer?.cancel();
     _world.dispose();
     _cast.dispose();
     super.dispose();
@@ -324,9 +414,9 @@ class _FishingCatGameState extends State<FishingCatGame>
               width: double.infinity,
               child: FilledButton.icon(
                 key: const ValueKey('cast-fishing-line'),
-                onPressed: _casting || _finishing ? null : _castLine,
+                onPressed: _inputLocked ? null : _castLine,
                 icon: const Icon(Icons.water),
-                label: Text(_casting ? 'ANGEL UNTERWEGS …' : 'ANGEL AUSWERFEN'),
+                label: Text(_buttonLabel),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFFE59456),
                   foregroundColor: const Color(0xFF251627),
@@ -340,9 +430,7 @@ class _FishingCatGameState extends State<FishingCatGame>
             ),
             TextButton(
               key: const ValueKey('skip-fishing-cat'),
-              onPressed: _casting || _finishing
-                  ? null
-                  : () => _finish(skipped: true),
+              onPressed: _inputLocked ? null : () => _finish(skipped: true),
               child: const Text(
                 'BONUS BEENDEN · PUNKTE BEHALTEN',
                 style: TextStyle(color: Color(0xFF9DE6DF), fontSize: 11),
